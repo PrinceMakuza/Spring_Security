@@ -40,6 +40,7 @@ public class AdminController extends VBox {
     private final UserDAO userDAO;
     private final OrderDAO orderDAO;
     private final ReviewDAO reviewDAO;
+    private final com.ecommerce.service.ReportService reportService;
 
     // Observable Lists
     private final ObservableList<Product> productList = FXCollections.observableArrayList();
@@ -61,6 +62,7 @@ public class AdminController extends VBox {
         this.userDAO = new UserDAO();
         this.orderDAO = new OrderDAO();
         this.reviewDAO = new ReviewDAO();
+        this.reportService = new com.ecommerce.service.ReportService();
         
         this.setSpacing(20);
         this.getStyleClass().add("main-content");
@@ -84,6 +86,7 @@ public class AdminController extends VBox {
         Button orderBtn = createTabBtn("📜 Orders", false);
         Button invBtn = createTabBtn("🏭 Inventory", false);
         Button reviewBtn = createTabBtn("⭐ Reviews", false);
+        Button reportBtn = createTabBtn("📊 Reports", false);
 
         StackPane contentPane = new StackPane();
         VBox prodPanel = buildProductPanel();
@@ -92,10 +95,11 @@ public class AdminController extends VBox {
         VBox orderPanel = buildOrderPanel();
         VBox reviewPanel = buildReviewPanel();
         VBox invPanel = buildInventoryPanel();
+        VBox reportPanel = buildReportPanel();
         
-        hideAll(catPanel, userPanel, orderPanel, reviewPanel, invPanel);
+        hideAll(catPanel, userPanel, orderPanel, reviewPanel, invPanel, reportPanel);
 
-        contentPane.getChildren().addAll(prodPanel, catPanel, userPanel, orderPanel, reviewPanel, invPanel);
+        contentPane.getChildren().addAll(prodPanel, catPanel, userPanel, orderPanel, reviewPanel, invPanel, reportPanel);
         VBox.setVgrow(contentPane, Priority.ALWAYS);
 
         prodBtn.setOnAction(e -> switchTab(prodPanel, prodBtn, contentPane, toggleBar));
@@ -104,8 +108,9 @@ public class AdminController extends VBox {
         orderBtn.setOnAction(e -> { loadOrders(); switchTab(orderPanel, orderBtn, contentPane, toggleBar); });
         invBtn.setOnAction(e -> { loadInventory(); switchTab(invPanel, invBtn, contentPane, toggleBar); });
         reviewBtn.setOnAction(e -> { loadReviews(); switchTab(reviewPanel, reviewBtn, contentPane, toggleBar); });
+        reportBtn.setOnAction(e -> switchTab(reportPanel, reportBtn, contentPane, toggleBar));
 
-        toggleBar.getChildren().addAll(prodBtn, catBtn, userBtn, orderBtn, invBtn, reviewBtn);
+        toggleBar.getChildren().addAll(prodBtn, catBtn, userBtn, orderBtn, invBtn, reviewBtn, reportBtn);
         ScrollPane scrollPane = new ScrollPane(contentPane);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 0;");
@@ -256,6 +261,78 @@ public class AdminController extends VBox {
 
         panel.getChildren().addAll(bar, table);
         return panel;
+    }
+
+    private VBox buildReportPanel() {
+        VBox panel = new VBox(25);
+        panel.setAlignment(Pos.CENTER);
+        panel.setPadding(new Insets(50));
+
+        Label title = new Label("System Health & Diagnostic Reports");
+        title.getStyleClass().add("content-title");
+        title.setStyle("-fx-font-size: 24px; -fx-text-fill: white;");
+
+        VBox reportBox = new VBox(20);
+        reportBox.setAlignment(Pos.CENTER);
+        reportBox.setMaxWidth(500);
+        reportBox.setPadding(new Insets(40));
+        reportBox.setStyle("-fx-background-color: #1e1e1e; -fx-background-radius: 15; -fx-border-color: #333; -fx-border-radius: 15;");
+
+        Button perfBtn = new Button("🚀 Generate Performance Report");
+        perfBtn.getStyleClass().add("button-primary");
+        perfBtn.setPrefWidth(350);
+        perfBtn.setPrefHeight(50);
+        perfBtn.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        
+        Label perfDesc = new Label("Measures query speed across No-Index, Index, and Cache scenarios.");
+        perfDesc.setStyle("-fx-text-fill: #b0b0b0; -fx-font-size: 12px;");
+
+        Button valBtn = new Button("✅ Generate Validation Report");
+        valBtn.getStyleClass().add("button-success");
+        valBtn.setPrefWidth(350);
+        valBtn.setPrefHeight(50);
+        valBtn.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+
+        Label valDesc = new Label("Runs automated sanity checks on CRUD, Constraints, and Checkout flows.");
+        valDesc.setStyle("-fx-text-fill: #b0b0b0; -fx-font-size: 12px;");
+
+        ProgressIndicator progress = new ProgressIndicator();
+        progress.setVisible(false);
+        progress.setPrefSize(40, 40);
+
+        perfBtn.setOnAction(e -> runReportTask("Performance Report", () -> reportService.generatePerformanceReport(), progress));
+        valBtn.setOnAction(e -> runReportTask("Validation Report", () -> reportService.generateValidationReport(), progress));
+
+        reportBox.getChildren().addAll(perfBtn, perfDesc, new Separator(), valBtn, valDesc, progress);
+        panel.getChildren().addAll(title, reportBox);
+        return panel;
+    }
+
+    private void runReportTask(String title, ReportTask task, ProgressIndicator progress) {
+        progress.setVisible(true);
+        new Thread(() -> {
+            try {
+                String path = task.execute();
+                javafx.application.Platform.runLater(() -> {
+                    progress.setVisible(false);
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Report Generated");
+                    alert.setHeaderText(title + " Complete");
+                    alert.setContentText("Report saved successfully to:\n" + path);
+                    alert.show();
+                });
+            } catch (Exception ex) {
+                javafx.application.Platform.runLater(() -> {
+                    progress.setVisible(false);
+                    showAlert(Alert.AlertType.ERROR, "Generation Failed", ex.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    @FunctionalInterface
+    interface ReportTask {
+        String execute() throws Exception;
     }
 
     // --- TABLES ---
