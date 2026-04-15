@@ -1,33 +1,33 @@
-=== PERFORMANCE REPORT ===
-Generated: 2026-04-12 23:11:15
-Methodology: Each query executed 5 times, average reported.
-Database: PostgreSQL
+=== SMART E-COMMERCE PERFORMANCE REPORT ===
+Generated: Wed Apr 15 11:18:02 CAT 2026
 
-QUERY 1: Search by name 'laptop'
-  With indexes: 0.6ms avg
-  (Without indexes estimated: 4.8ms avg)
-  Improvement: ~87.5%
+SCENARIO 1: NO INDEXES / NO CACHE
+---------------------------------
+Q1: Search 'laptop'            : 0.75 ms (avg of 5 runs)
+Q2: Join Products/Categories   : 1.00 ms (avg of 5 runs)
+Q3: Filter Category 1          : 0.67 ms (avg of 5 runs)
 
-QUERY 2: Product-Category JOIN
-  With indexes: 1.0ms avg
-  (Without indexes estimated: 6.0ms avg)
-  Improvement: ~83.3%
+SCENARIO 2: INDEXES ONLY (NO CACHE)
+-----------------------------------
+Q1: Search 'laptop'            : 0.89 ms (avg of 5 runs)
+Q2: Join Products/Categories   : 0.61 ms (avg of 5 runs)
+Q3: Filter Category 1          : 0.37 ms (avg of 5 runs)
 
-QUERY 3: Filter by category ID
-  With indexes: 1.0ms avg
-  (Without indexes estimated: 7.0ms avg)
-  Improvement: ~85.7%
+SCENARIO 3: INDEXES + CACHE
+---------------------------
+Q1: Search 'laptop'            : 0.36 ms (avg of 5 runs)
+Q2: Join Products/Categories   : 0.62 ms (avg of 5 runs)
+Q3: Filter Category 1          : 0.46 ms (avg of 5 runs)
 
-CACHE TEST:
-  First call (DB): 0ms
-  Second call (cache): 0ms
+=== PERFORMANCE ANALYSIS ===
+Q1: Search 'laptop':
+  Index Improvement: -18.6%
+  Overall (Index+Cache) Improvement: 52.3%
+Q2: Join Products/Categories:
+  Index Improvement: 38.5%
+  Overall (Index+Cache) Improvement: 37.6%
+Q3: Filter Category 1:
+  Index Improvement: 44.6%
+  Overall (Index+Cache) Improvement: 30.8%
 
-INTERNAL CACHE STATS (Memory-level Hash Index Concept):
-  Total Cache Hits: 1
-  Total Cache Misses: 1
-
-Findings:
-The combination of database indexing and application-level in-memory caching
-significantly reduces query latency. Indexes speed up the initial retrieval,
-while the HashMap cache provides O(1) response for subsequent requests,
-mirroring the logic of a database hash index.
+Cache Hit Rate during Scenario 3: 80% (Simulated: 4 of 5 runs)
