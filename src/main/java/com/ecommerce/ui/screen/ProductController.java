@@ -230,9 +230,14 @@ public class ProductController {
                     return;
                 }
                 cartService.addToCart(UserContext.getCurrentUserId(), product.getProductId(), qty);
-                showInfo("Added", qty + " unit(s) of " + product.getName() + " added to your cart!");
+                DataEventBus.publish(); // Force refresh across all views
+                showInfo("Added to Cart ✓", qty + " unit(s) of " + product.getName() + " added to your cart!");
             } catch (NumberFormatException e) {
                 showError("Input Error", "Please enter a valid number.");
+            } catch (Exception e) {
+                System.err.println("ERROR adding to cart: " + e.getMessage());
+                e.printStackTrace();
+                showError("Cart Error", e.getMessage());
             }
         });
     }

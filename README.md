@@ -10,9 +10,12 @@ A Spring Boot 3.x e-commerce application with RESTful APIs, GraphQL integration,
 - **ORM**: Spring Data JPA / Hibernate
 - **API**: REST + GraphQL (coexisting on same port)
 - **Docs**: Springdoc OpenAPI (Swagger UI)
-- **GraphQL Console**: Local GraphiQL page (no external CDN)
+- **GraphQL Console**: GraphiQL page 
 - **AOP**: Spring AOP (logging + performance monitoring)
+- **Caching**: Spring Cache (ConcurrentMapCache)
 - **Validation**: Jakarta Bean Validation + custom validators
+- **Transactions**: Declarative transaction management (@Transactional)
+- **Reporting**: Automated Performance, Validation, and System Documentation reports
 
 ---
 
@@ -85,7 +88,9 @@ http://localhost:8080/graphql
 ```
 http://localhost:8080/graphiql
 ```
-
+### h2 on test profile
+http://localhost:8081/h2-console
+```
 ## REST API Reference
 
 ### Users (`/api/users`)
@@ -128,6 +133,16 @@ http://localhost:8080/graphiql
 | PUT    | `/api/categories/{id}`  | Update a category         |
 | DELETE | `/api/categories/{id}`  | Delete a category         |
 
+### Orders (`/api/orders`)
+
+| Method | Endpoint              | Description                 |
+|--------|-----------------------|-----------------------------|
+| GET    | `/api/orders`         | List all orders             |
+| GET    | `/api/orders/user/{id}`| List orders for a user      |
+| GET    | `/api/orders/{id}`    | Get order details           |
+| POST   | `/api/orders`         | Create a new order (with stock check) |
+| PUT    | `/api/orders/{id}/status`| Update order status (New Tx) |
+
 ---
 
 ## AOP Aspects
@@ -160,6 +175,52 @@ http://localhost:8080/graphiql
 ### Error Handling
 - `GlobalExceptionHandler` via `@ControllerAdvice`
 - Consistent error response format: `{ status, message, data }`
+
+---
+
+## Repository Architecture & Query Logic
+
+### Persistence Layer
+The system uses Spring Data JPA with PostgreSQL. Repositories are designed for both efficiency and developer productivity.
+
+### Query Strategies
+- **Optimized Loading**: We utilize `LEFT JOIN FETCH` in JPQL queries to solve the N+1 problem, specifically for loading Products with Categories and Orders with Items.
+- **Dynamic Filtering**: Custom search queries in `ProductRepository` handle optional parameters (name, category, price range) gracefully using JPQL `IS NULL` checks.
+- **Native SQL Reporting**: For database-intensive aggregations (e.g., monthly revenue), we use `@Query(nativeQuery = true)` to leverage PostgreSQL's performance directly.
+- **Specifications**: Used where highly dynamic criteria are needed, ensuring the data access layer remains flexible.
+
+---
+
+## Transaction Management
+
+### Configuration
+The application uses declarative transaction management via `@Transactional` in the service layer.
+
+### Key Policies
+- **Atomic Order Creation**: `createOrder` uses `REQUIRED` propagation and `READ_COMMITTED` isolation. It performs a "check-then-act" sequence for stock validation. If any part of the process fails (e.g., insufficient stock), a `RuntimeException` is thrown, triggering a full rollback to maintain inventory integrity.
+- **Independent Status Updates**: `updateOrderStatus` uses `REQUIRES_NEW` to ensure the status change is recorded regardless of the outcome of any surrounding business transaction.
+- **Read-Only Optimization**: Query-heavy methods use `readOnly = true` to inform Hibernate that no dirty checking is required, reducing memory overhead and improving latency.
+
+---
+
+## Caching Implementation
+
+### Configuration
+Enabled via `@EnableCaching` and configured in `CacheConfig.java`.
+
+### Cache Strategy
+- **Manager**: `ConcurrentMapCacheManager`
+- **Cache Names**:
+    - `products`: Paginated product lists.
+    - `product`: Individual product details (by ID).
+    - `categories`: All categories list.
+    - `users`: User-related data.
+
+### Eviction Rules
+- `createProduct` -> Evicts `products` cache.
+- `updateProduct` / `deleteProduct` -> Evicts specific `product` entry and all `products` collection caches.
+- `createOrder` -> Evicts `users` cache to refresh order history.
+- `createCategory` / `updateCategory` / `deleteCategory` -> Evicts `categories` cache.
 
 ---
 
@@ -218,6 +279,9 @@ curl -X POST http://localhost:8080/graphql \
 | 9 | GraphQL fetch product         | POST   | `/graphql`                        | 200 OK   |
 | 10| GraphQL create product        | POST   | `/graphql`                        | 200 OK   |
 | 11| GraphQL GET request           | GET    | `/graphql`                        | 405 Method Not Allowed |
+| 12| Create order (Insufficient Stock)| POST   | `/api/orders`                     | 400 Bad Request / 500 Error |
+| 13| Verify Transaction Rollback    | -      | -                                 | Stock remains unchanged |
+| 14| Verify Cache Hit (Logs)        | GET    | `/api/products/1`                 | "Cache hit" in logs |
 
 ---
 

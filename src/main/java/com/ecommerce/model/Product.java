@@ -29,7 +29,7 @@ public class Product {
     @Column(nullable = false)
     private double price;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
 
@@ -92,18 +92,18 @@ public class Product {
     public int getStockQuantity() { return stockQuantity; }
     public void setStockQuantity(int stockQuantity) { this.stockQuantity = stockQuantity; }
 
-    @Transient
+    @org.hibernate.annotations.Formula("(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.product_id = product_id)")
+    private double averageRating;
+
     public double getAverageRating() {
-        // This is a placeholder that will be supported by the Service loading reviews if needed.
-        // For now, let's return a default or use a transient field if we populate it.
-        return 0.0; 
+        return averageRating;
     }
 
     @Transient
     public String getRatingStars() {
         double avg = getAverageRating();
-        int stars = (int) Math.round(avg);
-        return "⭐".repeat(Math.max(0, stars)) + String.format(" (%.1f)", avg);
+        int rating = (int) Math.round(avg);
+        return "★".repeat(Math.max(0, rating)) + "☆".repeat(Math.max(0, 5 - rating));
     }
 
     public java.time.LocalDateTime getCreatedAt() { return createdAt; }

@@ -22,6 +22,7 @@ import java.util.Optional;
  * Integrates Spring Caching and Jpa Specifications for high performance.
  */
 @Service("springProductService")
+@Transactional
 public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -35,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
      * Retrieve products with filtering, sorting, and pagination.
      * Uses Spring Cache to avoid redundant DB hits for the same search criteria.
      */
+    @Transactional(readOnly = true)
     @Cacheable(value = "products", key = "{#page, #size, #sortBy, #sortDir, #name, #categoryId, #minPrice, #maxPrice}")
     public Page<Product> getProducts(int page, int size, String sortBy, String sortDir,
                                       String name, Integer categoryId,
@@ -44,37 +46,17 @@ public class ProductServiceImpl implements ProductService {
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortField).ascending() : Sort.by(sortField).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Specification<Product> spec = Specification.where(null);
-
-        if (name != null && !name.isBlank()) {
-            spec = spec.and((root, query, cb) ->
-                cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
-        }
-
-        if (categoryId != null) {
-            spec = spec.and((root, query, cb) ->
-                cb.equal(root.get("category").get("categoryId"), categoryId));
-        }
-
-        if (minPrice != null) {
-            spec = spec.and((root, query, cb) ->
-                cb.greaterThanOrEqualTo(root.get("price"), minPrice));
-        }
-        if (maxPrice != null) {
-            spec = spec.and((root, query, cb) ->
-                cb.lessThanOrEqualTo(root.get("price"), maxPrice));
-        }
-
-        return productRepository.findAll(spec, pageable);
+        return productRepository.searchProducts(name, categoryId, minPrice, maxPrice, pageable);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "product", key = "#id")
     public Optional<Product> getProductById(int id) {
         return productRepository.findById(id);
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @CacheEvict(value = "products", allEntries = true)
     public Product createProduct(ProductDTO dto) {
         Category category = categoryRepository.findById(dto.categoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found with id: " + dto.categoryId()));
@@ -89,7 +71,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @org.springframework.cache.annotation.Caching(evict = {
+        @CacheEvict(value = "product", key = "#id"),
+        @CacheEvict(value = "products", allEntries = true)
+    })
     public Product updateProduct(int id, ProductDTO dto) {
         return productRepository.findById(id).map(product -> {
             product.setName(dto.name());
@@ -108,8 +93,23 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @org.springframework.cache.annotation.Caching(evict = {
+        @CacheEvict(value = "product", key = "#id"),
+        @CacheEvict(value = "products", allEntries = true)
+    })
     public void deleteProduct(int id) {
         productRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRED, rollbackFor = Exception.class)
+    @CacheEvict(value = "products", allEntries = true)
+    public void batchUpdatePrices(java.util.List<Integer> ids, double percentage) {
+        for (Integer id : ids) {
+            Product product = productRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + id));
+            product.setPrice(product.getPrice() * (1 + percentage / 100.0));
+            productRepository.save(product);
+        }
     }
 }

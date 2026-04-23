@@ -30,8 +30,12 @@ public class OrderHistoryController {
     @FXML private VBox ordersContainer;
     @FXML private TextField searchField;
     @FXML private ComboBox<String> sortCombo;
+    @FXML private Label pageLabel;
     
     private List<Order> allOrders;
+    private int currentPage = 1;
+    private final int pageSize = 5;
+    private int totalOrders = 0;
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
 
     @FXML
@@ -82,8 +86,40 @@ public class OrderHistoryController {
             return;
         }
 
-        for (Order order : filtered) {
+        totalOrders = filtered.size();
+        updatePaginationUI();
+
+        int from = (currentPage - 1) * pageSize;
+        int to = Math.min(from + pageSize, totalOrders);
+        
+        List<Order> paged = (from < totalOrders) ? filtered.subList(from, to) : java.util.Collections.emptyList();
+
+        for (Order order : paged) {
             ordersContainer.getChildren().add(createOrderCard(order));
+        }
+    }
+
+    private void updatePaginationUI() {
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalOrders / pageSize));
+        if (pageLabel != null) {
+            pageLabel.setText(String.format("Page %d of %d", currentPage, totalPages));
+        }
+    }
+
+    @FXML
+    private void handlePrevPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            filterAndDisplay();
+        }
+    }
+
+    @FXML
+    private void handleNextPage() {
+        int totalPages = (int) Math.ceil((double) totalOrders / pageSize);
+        if (currentPage < totalPages) {
+            currentPage++;
+            filterAndDisplay();
         }
     }
 

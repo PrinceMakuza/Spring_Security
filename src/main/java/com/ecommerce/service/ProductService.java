@@ -17,4 +17,6 @@ public interface ProductService {
     Product updateProduct(int id, ProductDTO dto);
 
     void deleteProduct(int id);
+
+    void batchUpdatePrices(java.util.List<Integer> ids, double percentage);
 }

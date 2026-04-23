@@ -8,6 +8,8 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.util.List;
 
@@ -24,6 +26,9 @@ public class DataInitializer implements CommandLineRunner {
     private final OrderRepository orderRepository;
     private final ReviewRepository reviewRepository;
     private final CartItemRepository cartItemRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public DataInitializer(UserRepository userRepository,
                            CategoryRepository categoryRepository,
@@ -42,29 +47,36 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        System.out.println("[DataInitializer] Checking database state...");
+        System.out.println("[DataInitializer] Starting database re-initialization...");
         
-        if (categoryRepository.count() == 0) {
-            System.out.println("[DataInitializer] No categories found. Seeding categories...");
+        try {
+            // Perform a full reset as requested by the user
+            cleanDatabase();
+            
+            System.out.println("[DataInitializer] Seeding categories...");
             seedCategories();
-        }
 
-        if (!userRepository.existsByEmail("admin@ecommerce.com")) {
-            System.out.println("[DataInitializer] Admin user missing. Seeding default admin...");
+            System.out.println("[DataInitializer] Seeding admin user...");
             seedAdmin();
-        }
 
-        if (userRepository.count() < 2) {
-            System.out.println("[DataInitializer] Insufficient sample users. Seeding default customer...");
+            System.out.println("[DataInitializer] Seeding sample customer...");
             seedCustomer();
-        }
 
-        if (productRepository.count() == 0) {
-            System.out.println("[DataInitializer] No products found. Seeding products...");
+            System.out.println("[DataInitializer] Seeding products...");
             seedProducts();
-        }
 
-        System.out.println("[DataInitializer] Initialization check complete.");
+            System.out.println("[DataInitializer] Initialization complete. All tables reset and seeded.");
+        } catch (Exception e) {
+            System.err.println("[DataInitializer] Error during initialization: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void cleanDatabase() {
+        System.out.println("[DataInitializer] Truncating tables and resetting identities...");
+        // Use TRUNCATE with RESTART IDENTITY CASCADE to clear all data and reset sequences to 1
+        entityManager.createNativeQuery("TRUNCATE TABLE cartitems, reviews, orderitems, orders, products, categories, users RESTART IDENTITY CASCADE").executeUpdate();
+        System.out.println("[DataInitializer] All tables truncated and sequences reset to 1.");
     }
 
     private void seedCategories() {

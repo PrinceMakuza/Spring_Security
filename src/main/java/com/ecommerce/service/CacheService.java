@@ -5,10 +5,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.stereotype.Service;
+
 /**
  * CacheService manages an in-memory HashMap cache for search results.
  * Provides O(1) hashing for speed as per requirements.
  */
+@Service
 public class CacheService {
     private Map<String, List<Product>> searchCache = new HashMap<>();
     

@@ -5,155 +5,235 @@ import com.ecommerce.service.CartService;
 import com.ecommerce.util.SpringContextBridge;
 import com.ecommerce.util.UserContext;
 import com.ecommerce.util.DataEventBus;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.layout.HBox;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * CartController handles shopping cart interactions and layout.
- * Updated with quantity +/- buttons and individual item checkout.
+ * CartController handles shopping cart interactions using a TableView.
+ * Uses ObservableList for data binding and forces UI refresh after modifications.
  */
 public class CartController {
     private final CartService cartService = SpringContextBridge.getBean(CartService.class);
     
-    @FXML private VBox itemsContainer;
+    @FXML private TableView<CartItem> cartTable;
     @FXML private Label totalLabel;
+    @FXML private Label pageLabel;
     @FXML private TextField searchField;
     @FXML private ComboBox<String> sortCombo;
     
-    private List<CartItem> allItems;
+    private final ObservableList<CartItem> cartData = FXCollections.observableArrayList();
+    private final ObservableList<CartItem> cartItems = FXCollections.observableArrayList();
+    private int currentPage = 1;
+    private final int pageSize = 10;
+    private int totalItems = 0;
 
     @FXML
     public void initialize() {
+        setupTable();
+        
         if (sortCombo != null) {
             sortCombo.setItems(FXCollections.observableArrayList("Name (A-Z)", "Price (Low to High)", "Price (High to Low)"));
         }
         
-        // Subscribe to real-time sync
+        // Subscribe to real-time sync from other views (e.g. ProductController adding items)
         DataEventBus.subscribe(this::loadCart);
         
         loadCart();
     }
 
+    private void setupTable() {
+        TableColumn<CartItem, String> nameCol = new TableColumn<>("Product");
+        nameCol.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getProductName()));
+        nameCol.setPrefWidth(250);
+
+        TableColumn<CartItem, String> priceCol = new TableColumn<>("Price");
+        priceCol.setCellValueFactory(d -> new SimpleStringProperty(String.format("$%.2f", d.getValue().getUnitPrice())));
+        priceCol.setPrefWidth(100);
+
+        TableColumn<CartItem, Void> qtyCol = new TableColumn<>("Quantity");
+        qtyCol.setPrefWidth(150);
+        qtyCol.setCellFactory(param -> new TableCell<>() {
+            private final Button minBtn = new Button("-");
+            private final Button plusBtn = new Button("+");
+            private final Label qtyLabel = new Label();
+            private final HBox container = new HBox(10, minBtn, qtyLabel, plusBtn);
+            {
+                container.setAlignment(Pos.CENTER);
+                minBtn.setOnAction(e -> {
+                    CartItem item = getTableView().getItems().get(getIndex());
+                    updateQty(item, -1);
+                });
+                plusBtn.setOnAction(e -> {
+                    CartItem item = getTableView().getItems().get(getIndex());
+                    updateQty(item, 1);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
+                    setGraphic(null);
+                } else {
+                    qtyLabel.setText(String.valueOf(getTableView().getItems().get(getIndex()).getQuantity()));
+                    setGraphic(container);
+                }
+            }
+        });
+
+        TableColumn<CartItem, String> subtotalCol = new TableColumn<>("Subtotal");
+        subtotalCol.setCellValueFactory(d -> new SimpleStringProperty(String.format("$%.2f", d.getValue().getSubtotal())));
+        subtotalCol.setPrefWidth(120);
+
+        TableColumn<CartItem, Void> actionCol = new TableColumn<>("Actions");
+        actionCol.setPrefWidth(180);
+        actionCol.setCellFactory(param -> new TableCell<>() {
+            private final Button buyBtn = new Button("Buy");
+            private final Button removeBtn = new Button("🗑");
+            private final HBox container = new HBox(10, buyBtn, removeBtn);
+            {
+                container.setAlignment(Pos.CENTER);
+                buyBtn.getStyleClass().add("button-success");
+                removeBtn.getStyleClass().add("button-danger");
+                buyBtn.setOnAction(e -> {
+                    CartItem item = getTableView().getItems().get(getIndex());
+                    handleSingleCheckout(item);
+                });
+                removeBtn.setOnAction(e -> {
+                    CartItem item = getTableView().getItems().get(getIndex());
+                    handleRemove(item);
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) setGraphic(null);
+                else setGraphic(container);
+            }
+        });
+
+        cartTable.getColumns().setAll(nameCol, priceCol, qtyCol, subtotalCol, actionCol);
+        cartTable.setItems(cartItems);
+    }
+
     @FXML
     public void loadCart() {
+        // No Platform.runLater here — DataEventBus.publish() already dispatches on FX thread
         try {
-            allItems = cartService.getCartItems(UserContext.getCurrentUserId());
+            int userId = UserContext.getCurrentUserId();
+            System.out.println("DEBUG CartController.loadCart: userId=" + userId);
+            List<CartItem> items = cartService.getCartItems(userId);
+            System.out.println("DEBUG CartController.loadCart: items=" + (items != null ? items.size() : "null"));
+            
+            // Apply search/sort filter on the fetched items directly
+            String search = (searchField != null && searchField.getText() != null) 
+                    ? searchField.getText().toLowerCase() : "";
+            
+            List<CartItem> filtered = items.stream()
+                .filter(i -> search.isEmpty() || i.getProductName().toLowerCase().contains(search))
+                .collect(Collectors.toList());
+            
+            if (sortCombo != null && sortCombo.getValue() != null) {
+                String sort = sortCombo.getValue();
+                if ("Name (A-Z)".equals(sort)) filtered.sort(Comparator.comparing(CartItem::getProductName));
+                else if ("Price (Low to High)".equals(sort)) filtered.sort(Comparator.comparing(CartItem::getUnitPrice));
+                else if ("Price (High to Low)".equals(sort)) filtered.sort(Comparator.comparing(CartItem::getUnitPrice).reversed());
+            }
+            
+            cartData.setAll(filtered);
+            
+            double total = filtered.stream().mapToDouble(i -> i.getUnitPrice() * i.getQuantity()).sum();
+            if (totalLabel != null) {
+                totalLabel.setText(String.format("Total: $%.2f", total));
+            }
+
+            totalItems = filtered.size();
+            updatePaginationUI();
+
+            int from = (currentPage - 1) * pageSize;
+            int to = Math.min(from + pageSize, totalItems);
+            
+            if (from < totalItems) {
+                cartItems.setAll(filtered.subList(from, to));
+            } else {
+                cartItems.clear();
+            }
+            
+            cartTable.refresh();
+            System.out.println("DEBUG CartController.loadCart: table refreshed, rows=" + cartItems.size());
+        } catch (Exception e) {
+            System.err.println("ERROR CartController.loadCart: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void updatePaginationUI() {
+        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / pageSize));
+        if (pageLabel != null) {
+            pageLabel.setText(String.format("Page %d of %d", currentPage, totalPages));
+        }
+    }
+
+    @FXML
+    private void handlePrevPage() {
+        if (currentPage > 1) {
+            currentPage--;
             filterAndDisplay();
-        } catch (Exception e) {}
+        }
+    }
+
+    @FXML
+    private void handleNextPage() {
+        int totalPages = (int) Math.ceil((double) totalItems / pageSize);
+        if (currentPage < totalPages) {
+            currentPage++;
+            filterAndDisplay();
+        }
     }
 
     @FXML
     private void filterAndDisplay() {
-        itemsContainer.getChildren().clear();
-        if (allItems == null) return;
-
-        String search = searchField.getText().toLowerCase();
-        List<CartItem> filtered = allItems.stream()
-            .filter(i -> i.getProductName().toLowerCase().contains(search))
-            .collect(Collectors.toList());
-
-        String sort = sortCombo.getValue();
-        if (sort != null) {
-            if (sort.equals("Name (A-Z)")) filtered.sort(java.util.Comparator.comparing(CartItem::getProductName));
-            else if (sort.equals("Price (Low to High)")) filtered.sort(java.util.Comparator.comparing(CartItem::getUnitPrice));
-            else if (sort.equals("Price (High to Low)")) filtered.sort(java.util.Comparator.comparing(CartItem::getUnitPrice).reversed());
-        }
-
-        double total = 0;
-        for (CartItem item : filtered) {
-            total += item.getSubtotal();
-            itemsContainer.getChildren().add(buildItemRow(item));
-        }
-
-        totalLabel.setText(String.format("Total: $%.2f", total));
-
-        if (filtered.isEmpty()) {
-            Label emptyLabel = new Label(allItems.isEmpty() ? "Your cart is empty." : "No matching items found.");
-            emptyLabel.getStyleClass().add("label-muted");
-            emptyLabel.setStyle("-fx-font-size: 16px;");
-            itemsContainer.getChildren().add(emptyLabel);
-        }
+        // Delegate to loadCart which handles filtering
+        loadCart();
     }
 
-    private HBox buildItemRow(CartItem item) {
-        HBox row = new HBox(15);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(15));
-        row.getStyleClass().add("card");
-
-        VBox details = new VBox(5);
-        Label name = new Label(item.getProductName());
-        name.getStyleClass().add("label-bright");
-        name.setFont(Font.font("System", FontWeight.BOLD, 18));
-        Label price = new Label(String.format("$%.2f each", item.getUnitPrice()));
-        price.getStyleClass().add("label-muted");
-        details.getChildren().addAll(name, price);
-        HBox.setHgrow(details, Priority.ALWAYS);
-
-        // Quantity Controls [-] [Qty] [+]
-        HBox qtyBox = new HBox(5);
-        qtyBox.setAlignment(Pos.CENTER);
-        Button minBtn = new Button("-");
-        minBtn.setStyle("-fx-font-weight: bold; -fx-min-width: 30;");
-        minBtn.setOnAction(e -> updateQty(item.getCartItemId(), item.getQuantity() - 1));
-        
-        Label qtyLabel = new Label(String.valueOf(item.getQuantity()));
-        qtyLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-min-width: 30; -fx-alignment: center;");
-        
-        Button plusBtn = new Button("+");
-        plusBtn.setStyle("-fx-font-weight: bold; -fx-min-width: 30;");
-        plusBtn.setOnAction(e -> updateQty(item.getCartItemId(), item.getQuantity() + 1));
-        
-        qtyBox.getChildren().addAll(minBtn, qtyLabel, plusBtn);
-
-        Label subtotal = new Label(String.format("$%.2f", item.getSubtotal()));
-        subtotal.getStyleClass().add("label-bright");
-        subtotal.setStyle("-fx-text-fill: #38b86c; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center-right;");
-
-        // Action Buttons
-        Button buyNowBtn = new Button("Buy Now");
-        buyNowBtn.getStyleClass().add("button-success");
-        buyNowBtn.setStyle("-fx-font-size: 11px;");
-        buyNowBtn.setOnAction(e -> {
-            try {
-                cartService.checkoutSingleItem(item.getCartItemId());
-                showInfo("Success", "Ordered " + item.getProductName() + " successfully!");
-            } catch (Exception ex) {
-                showError("Order Failed", ex.getMessage());
-            }
-        });
-
-        Button removeBtn = new Button("🗑");
-        removeBtn.getStyleClass().add("button-danger");
-        removeBtn.setOnAction(e -> {
-            try {
-                cartService.removeFromCart(item.getCartItemId());
-            } catch (Exception ex) {
-                showError("Error", ex.getMessage());
-            }
-        });
-
-        row.getChildren().addAll(details, qtyBox, subtotal, buyNowBtn, removeBtn);
-        return row;
-    }
-
-    private void updateQty(int itemId, int newQty) {
+    private void updateQty(CartItem item, int delta) {
         try {
+            int newQty = item.getQuantity() + delta;
             if (newQty <= 0) {
-                cartService.removeFromCart(itemId);
+                cartService.removeFromCart(item.getCartItemId());
             } else {
-                cartService.updateQuantity(itemId, newQty);
+                cartService.updateQuantity(item.getCartItemId(), newQty);
             }
+            DataEventBus.publish();
         } catch (Exception e) {
-            showError("Update Error", "Update failed: " + e.getMessage());
+            showError("Update Error", e.getMessage());
+        }
+    }
+
+    private void handleRemove(CartItem item) {
+        try {
+            cartService.removeFromCart(item.getCartItemId());
+            DataEventBus.publish();
+        } catch (Exception e) {
+            showError("Error", e.getMessage());
+        }
+    }
+
+    private void handleSingleCheckout(CartItem item) {
+        try {
+            cartService.checkoutSingleItem(item.getCartItemId());
+            DataEventBus.publish();
+            showInfo("Order Placed", "Ordered " + item.getProductName() + " successfully!");
+        } catch (Exception e) {
+            showError("Order Failed", e.getMessage());
         }
     }
 
@@ -161,7 +241,8 @@ public class CartController {
     private void handleCheckout() {
         try {
             if (cartService.checkout(UserContext.getCurrentUserId())) {
-                showInfo("Success", "Full order placed successfully!");
+                DataEventBus.publish();
+                showInfo("Order Placed", "Your full order has been placed successfully!");
             } else {
                 showError("Checkout", "Your cart is empty.");
             }
@@ -172,11 +253,14 @@ public class CartController {
 
     private void showInfo(String title, String msg) {
         Alert a = new Alert(Alert.AlertType.INFORMATION, msg);
-        a.setTitle(title); a.setHeaderText(null); a.show();
+        a.setTitle(title);
+        a.setHeaderText(null);
+        a.show();
     }
 
     private void showError(String title, String msg) {
         Alert a = new Alert(Alert.AlertType.ERROR, msg);
-        a.setTitle(title); a.show();
+        a.setTitle(title);
+        a.show();
     }
 }

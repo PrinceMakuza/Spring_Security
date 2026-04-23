@@ -58,25 +58,35 @@ public class AdminController {
 
     private TextField productSearch, catSearch, userSearch, orderSearch, reviewSearch, invSearch;
     private ComboBox<String> productSort, catSort, userSort, orderSort, reviewSort, invSort;
+    private Label prodPageLabel, catPageLabel, userPageLabel, orderPageLabel, reviewPageLabel, invPageLabel;
+    private int prodPage = 1, catPage = 1, userPage = 1, orderPage = 1, reviewPage = 1, invPage = 1;
+    private final int pageSize = 10;
+    private int prodTotal = 0, catTotal = 0, userTotal = 0, orderTotal = 0, reviewTotal = 0, invTotal = 0;
     private List<Category> categories;
 
     private VBox prodPanel, catPanel, userPanel, orderPanel, reviewPanel, invPanel, reportPanel;
 
     @FXML
     public void initialize() {
-        prodPanel = buildProductPanel();
-        catPanel = buildCategoryPanel();
-        userPanel = buildUserPanel();
-        orderPanel = buildOrderPanel();
-        reviewPanel = buildReviewPanel();
-        invPanel = buildInventoryPanel();
-        reportPanel = buildReportPanel();
-        
-        contentPane.getChildren().addAll(prodPanel, catPanel, userPanel, orderPanel, reviewPanel, invPanel, reportPanel);
-        showProducts();
-        
-        // Subscribe to real-time events
-        DataEventBus.subscribe(this::loadAllData);
+        try {
+            prodPanel = buildProductPanel();
+            catPanel = buildCategoryPanel();
+            userPanel = buildUserPanel();
+            orderPanel = buildOrderPanel();
+            reviewPanel = buildReviewPanel();
+            invPanel = buildInventoryPanel();
+            reportPanel = buildReportPanel();
+            
+            contentPane.getChildren().addAll(prodPanel, catPanel, userPanel, orderPanel, reviewPanel, invPanel, reportPanel);
+            showProducts();
+            
+            // Subscribe to real-time events
+            DataEventBus.subscribe(this::loadAllData);
+        } catch (Exception e) {
+            System.err.println("[AdminController] Error during initialization: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Re-throw to let FXMLLoader know it failed
+        }
     }
 
     private void loadAllData() {
@@ -130,7 +140,9 @@ public class AdminController {
         edit.setOnAction(e -> { Product s = table.getSelectionModel().getSelectedItem(); if (s != null) handleProductDialog(s); });
         del.setOnAction(e -> { Product s = table.getSelectionModel().getSelectedItem(); if (s != null) handleDeleteProduct(s); });
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        prodPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(prodPageLabel, e -> { if (prodPage > 1) { prodPage--; loadInitialData(); } }, e -> { if (prodPage < (int)Math.ceil((double)prodTotal/pageSize)) { prodPage++; loadInitialData(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
     }
 
@@ -161,7 +173,9 @@ public class AdminController {
         edit.setOnAction(e -> { Category s = table.getSelectionModel().getSelectedItem(); if (s != null) handleCategoryDialog(s); });
         del.setOnAction(e -> { Category s = table.getSelectionModel().getSelectedItem(); if (s != null) handleDeleteCategory(s); });
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        catPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(catPageLabel, e -> { if (catPage > 1) { catPage--; loadInitialData(); } }, e -> { if (catPage < (int)Math.ceil((double)catTotal/pageSize)) { catPage++; loadInitialData(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
     }
 
@@ -190,7 +204,9 @@ public class AdminController {
         edit.setOnAction(e -> { User s = table.getSelectionModel().getSelectedItem(); if (s != null) handleUserDialog(s); });
         del.setOnAction(e -> { User s = table.getSelectionModel().getSelectedItem(); if (s != null) handleDeleteUser(s); });
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        userPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(userPageLabel, e -> { if (userPage > 1) { userPage--; loadUsers(); } }, e -> { if (userPage < (int)Math.ceil((double)userTotal/pageSize)) { userPage++; loadUsers(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
     }
 
@@ -214,7 +230,9 @@ public class AdminController {
         bar.getChildren().addAll(lbl, spacer, orderSearch, orderSort, refresh);
         TableView<Order> table = createOrderTable();
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        orderPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(orderPageLabel, e -> { if (orderPage > 1) { orderPage--; applyOrderFilters(); } }, e -> { if (orderPage < (int)Math.ceil((double)orderTotal/pageSize)) { orderPage++; applyOrderFilters(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
     }
 
@@ -238,7 +256,9 @@ public class AdminController {
         bar.getChildren().addAll(lbl, spacer, reviewSearch, reviewSort, refresh);
         TableView<Review> table = createReviewTable();
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        reviewPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(reviewPageLabel, e -> { if (reviewPage > 1) { reviewPage--; applyReviewFilters(); } }, e -> { if (reviewPage < (int)Math.ceil((double)reviewTotal/pageSize)) { reviewPage++; applyReviewFilters(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
     }
 
@@ -263,8 +283,24 @@ public class AdminController {
         TableView<Product> table = createInventoryTable();
         edit.setOnAction(e -> { Product s = table.getSelectionModel().getSelectedItem(); if (s != null) handleInventoryDialog(s); });
         VBox.setVgrow(table, Priority.ALWAYS);
-        panel.getChildren().addAll(bar, table);
+        invPageLabel = new Label("Page 1 of 1");
+        HBox pagination = createPaginationBar(invPageLabel, e -> { if (invPage > 1) { invPage--; loadInventory(); } }, e -> { if (invPage < (int)Math.ceil((double)invTotal/pageSize)) { invPage++; loadInventory(); } });
+        panel.getChildren().addAll(bar, table, pagination);
         return panel;
+    }
+
+    private HBox createPaginationBar(Label label, javafx.event.EventHandler<javafx.event.ActionEvent> prev, javafx.event.EventHandler<javafx.event.ActionEvent> next) {
+        HBox hbox = new HBox(15);
+        hbox.setAlignment(Pos.CENTER);
+        hbox.setPadding(new Insets(10));
+        hbox.getStyleClass().add("pagination-bar");
+        Button prevBtn = new Button("◀ Previous");
+        Button nextBtn = new Button("Next ▶");
+        prevBtn.setOnAction(prev);
+        nextBtn.setOnAction(next);
+        label.getStyleClass().add("page-label");
+        hbox.getChildren().addAll(prevBtn, label, nextBtn);
+        return hbox;
     }
 
     private VBox buildReportPanel() {
@@ -274,11 +310,13 @@ public class AdminController {
 
         Button perfBtn = new Button("🚀 Generate Performance Report"); perfBtn.getStyleClass().add("button-primary");
         Button valBtn = new Button("✅ Generate Validation Report"); valBtn.getStyleClass().add("button-success");
+        Button docBtn = new Button("📚 Generate System Documentation"); docBtn.getStyleClass().add("button-primary");
         ProgressIndicator progress = new ProgressIndicator(); progress.setVisible(false);
 
         perfBtn.setOnAction(e -> runReportTask("Performance Report", () -> reportService.generatePerformanceReport(), progress));
         valBtn.setOnAction(e -> runReportTask("Validation Report", () -> reportService.generateValidationReport(), progress));
-        reportBox.getChildren().addAll(perfBtn, valBtn, progress);
+        docBtn.setOnAction(e -> runReportTask("System Documentation", () -> reportService.generateSystemDocumentation(), progress));
+        reportBox.getChildren().addAll(perfBtn, valBtn, docBtn, progress);
         panel.getChildren().addAll(reportBox);
         return panel;
     }
@@ -531,23 +569,27 @@ public class AdminController {
 
     private void applyOrderFilters() {
         try {
-            List<Order> all = orderService.getAllOrders();
-            // For now, let's just assume we want all orders if userId is 0 or handled by service
-            // Simplification: load from repository directly via service if available
+            String sortBy = "orderDate";
+            String dir = "desc";
+            String sort = orderSort.getValue();
+            if ("Date (Oldest)".equals(sort)) dir = "asc";
+            else if ("Amount (High)".equals(sort)) { sortBy = "totalAmount"; dir = "desc"; }
+            else if ("Status".equals(sort)) { sortBy = "status"; dir = "asc"; }
+
+            var orderPageObj = orderService.getAllOrders(orderPage - 1, pageSize, sortBy, dir);
             String search = orderSearch.getText().toLowerCase();
-            List<Order> filtered = all.stream().filter(o -> 
+            List<Order> filtered = orderPageObj.getContent().stream().filter(o -> 
                 String.valueOf(o.getOrderId()).contains(search) || 
                 o.getUserName().toLowerCase().contains(search)
             ).collect(Collectors.toList());
 
-            String sort = orderSort.getValue();
-            if ("Date (Newest)".equals(sort)) filtered.sort(Comparator.comparing(Order::getOrderDate).reversed());
-            else if ("Date (Oldest)".equals(sort)) filtered.sort(Comparator.comparing(Order::getOrderDate));
-            else if ("Amount (High)".equals(sort)) filtered.sort(Comparator.comparing(Order::getTotalAmount).reversed());
-            else if ("Status".equals(sort)) filtered.sort(Comparator.comparing(Order::getStatus));
-
             orderList.setAll(filtered);
-        } catch (Exception e) {}
+            orderTotal = (int) orderPageObj.getTotalElements();
+            if (orderPageLabel != null) orderPageLabel.setText(String.format("Page %d of %d", orderPage, Math.max(1, (int)Math.ceil((double)orderTotal/pageSize))));
+        } catch (Exception e) {
+            System.err.println("[AdminController] Error loading orders: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private TableView<Review> createReviewTable() {
@@ -581,7 +623,7 @@ public class AdminController {
 
     private void applyReviewFilters() {
         try {
-            List<Review> all = reviewRepository.findAll();
+            List<Review> all = reviewRepository.findAllWithUserAndProduct();
             String search = reviewSearch.getText().toLowerCase();
             List<Review> filtered = all.stream().filter(r -> 
                 r.getProductName().toLowerCase().contains(search) || 
@@ -593,8 +635,18 @@ public class AdminController {
             else if ("Rating (Low)".equals(sort)) filtered.sort(Comparator.comparing(Review::getRating));
             else if ("Product Name".equals(sort)) filtered.sort(Comparator.comparing(Review::getProductName));
 
-            reviewList.setAll(filtered);
-        } catch (Exception e) {}
+            // Review doesn't have paginated service yet, using manual paging on list
+            reviewTotal = filtered.size();
+            int from = (reviewPage - 1) * pageSize;
+            int to = Math.min(from + pageSize, reviewTotal);
+            if (from < reviewTotal) reviewList.setAll(filtered.subList(from, to));
+            else reviewList.clear();
+            
+            if (reviewPageLabel != null) reviewPageLabel.setText(String.format("Page %d of %d", reviewPage, Math.max(1, (int)Math.ceil((double)reviewTotal/pageSize))));
+        } catch (Exception e) {
+            System.err.println("[AdminController] Error loading reviews: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private TableView<Product> createInventoryTable() {
@@ -638,8 +690,11 @@ public class AdminController {
             else if ("Name A-Z".equals(catSortVal)) { catSortBy = "name"; catDir = "asc"; }
             else if ("Name Z-A".equals(catSortVal)) { catSortBy = "name"; catDir = "desc"; }
 
-            categories = categoryService.getCategories(0, 500, catSortBy, catDir, (catSearch != null ? catSearch.getText() : null)).getContent(); 
+            var catPageObj = categoryService.getCategories(catPage - 1, pageSize, catSortBy, catDir, (catSearch != null ? catSearch.getText() : null));
+            categories = catPageObj.getContent();
             categoryList.setAll(categories);
+            catTotal = (int) catPageObj.getTotalElements();
+            if (catPageLabel != null) catPageLabel.setText(String.format("Page %d of %d", catPage, Math.max(1, (int)Math.ceil((double)catTotal/pageSize))));
             
             String search = (productSearch != null) ? productSearch.getText() : "";
             String sortVal = (productSort != null) ? productSort.getValue() : "ID (Oldest First)";
@@ -652,10 +707,14 @@ public class AdminController {
             else if ("Price (Low to High)".equals(sortVal)) { sortBy = "price"; dir = "asc"; }
             else if ("Price (High to Low)".equals(sortVal)) { sortBy = "price"; dir = "desc"; }
 
-            productList.setAll(productService.getProducts(0, 500, sortBy, dir, search, null, null, null).getContent());
+            var prodPageObj = productService.getProducts(prodPage - 1, pageSize, sortBy, dir, search, null, null, null);
+            productList.setAll(prodPageObj.getContent());
+            prodTotal = (int) prodPageObj.getTotalElements();
+            if (prodPageLabel != null) prodPageLabel.setText(String.format("Page %d of %d", prodPage, Math.max(1, (int)Math.ceil((double)prodTotal/pageSize))));
         } catch (Exception e) {
             System.err.println("[AdminController] Error loading initial data: " + e.getMessage());
             e.printStackTrace();
+            javafx.application.Platform.runLater(() -> showAlert(Alert.AlertType.ERROR, "Data Loading Error", "Failed to load products/categories: " + e.getMessage()));
         } 
     }
 
@@ -670,8 +729,10 @@ public class AdminController {
             else if ("Name Z-A".equals(sortVal)) { sortBy = "name"; dir = "desc"; }
             else if ("Role".equals(sortVal)) { sortBy = "role"; dir = "asc"; }
 
-            userList.setAll(userService.getAllUsers(0, 500, sortBy, dir, (userSearch != null ? userSearch.getText() : null)).getContent()
-                .stream().filter(u -> !"ADMIN".equals(u.getRole())).toList()); 
+            var userPageObj = userService.getAllUsers(userPage - 1, pageSize, sortBy, dir, (userSearch != null ? userSearch.getText() : null));
+            userList.setAll(userPageObj.getContent().stream().filter(u -> !"ADMIN".equals(u.getRole())).toList());
+            userTotal = (int) userPageObj.getTotalElements();
+            if (userPageLabel != null) userPageLabel.setText(String.format("Page %d of %d", userPage, Math.max(1, (int)Math.ceil((double)userTotal/pageSize))));
         } catch (Exception e) {} 
     }
 
@@ -689,7 +750,10 @@ public class AdminController {
             else if ("Stock (Low to High)".equals(sortVal)) { sortBy = "stockQuantity"; dir = "asc"; }
             else if ("Stock (High to Low)".equals(sortVal)) { sortBy = "stockQuantity"; dir = "desc"; }
 
-            productList.setAll(productService.getProducts(0, 500, sortBy, dir, search, null, null, null).getContent()); 
+            var invPageObj = productService.getProducts(invPage - 1, pageSize, sortBy, dir, search, null, null, null);
+            productList.setAll(invPageObj.getContent()); 
+            invTotal = (int) invPageObj.getTotalElements();
+            if (invPageLabel != null) invPageLabel.setText(String.format("Page %d of %d", invPage, Math.max(1, (int)Math.ceil((double)invTotal/pageSize))));
         } catch (Exception e) {}
     }
 

@@ -1,23 +1,11 @@
-# SMART E-COMMERCE SYSTEM VALIDATION REPORT
-Generated: 2026-04-16
+=== SMART E-COMMERCE VALIDATION REPORT ===
+Generated: Fri Apr 24 00:01:56 CAT 2026
 
-## 1. Core Service Validation
-- [PASS] AuthService: Register/Login with BCrypt password hashing.
-- [PASS] SpringProductService: Paging, Sorting, and Filtering via Spring Data Specification.
-- [PASS] CartService: Atomic checkout process with Transaction management.
-- [PASS] CategoryService: CRUD operations for hierarchical categorization.
-
-## 2. Persistence Layer Validation
-- [PASS] Entity Mappings: Accurate @OneToMany and @ManyToOne relationships for Orders/Items.
-- [PASS] Repository Integration: Verified JpaRepository functionality for all entities.
-- [PASS] Data Integrity: Enforced constraints on Stock Quantity and User Emails.
-
-## 3. UI Connection Validation
-- [PASS] SpringContextBridge: Successfully injecting beans into JavaFX Controllers.
-- [PASS] FXML Loading: MainApp correctly initializes with modern tabbed interface.
-- [PASS] Thread Safety: Ensuring UI updates happen on JavaFX Application Thread.
-
-## 4. Overall Status
-System Architecture: 100% Modernized
-Legacy DAO Residuals: 0% 
-Runtime Stability: High (Verified via Spring Context Startup)
+[ PASS ] CRUD: Add Product
+[ PASS ] CRUD: Update Product
+[ PASS ] CRUD: Delete Product
+[ PASS ] Search: Case-insensitive 'laPTop'
+[ ERROR ] Pagination: Page size enforcement (JDBC exception executing SQL [select count(p1_0.product_id) from products p1_0 left join categories c1_0 on c1_0.category_id=p1_0.category_id where (? is null or lower(p1_0.name) like lower(('%'||?||'%')) escape '') and (? is null or c1_0.category_id=?) and (? is null or p1_0.price>=?) and (? is null or p1_0.price<=?)] [ERROR: function lower(bytea) does not exist
+  Hint: No function matches the given name and argument types. You might need to add explicit type casts.
+  Position: 156] [n/a]; SQL [n/a])
+[ PASS ] Checkout Flow: End-to-End

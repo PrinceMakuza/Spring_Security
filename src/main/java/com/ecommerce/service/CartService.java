@@ -11,14 +11,17 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * CartService manages the shopping cart business logic.
- * Uses Spring @Transactional to ensure atomic checkout.
- * Now synchronized with DataEventBus for real-time UI updates.
+ * Note: DataEventBus.publish() should be called from the caller (Controller) 
+ * to ensure transaction commit before UI refresh.
  */
 @Service
 public class CartService {
@@ -26,6 +29,8 @@ public class CartService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    
+    private final ConcurrentMap<Integer, List<CartItem>> userCarts = new ConcurrentHashMap<>();
 
     public CartService(CartItemRepository cartItemRepository, 
                        ProductRepository productRepository,
@@ -39,17 +44,20 @@ public class CartService {
 
     @Transactional
     public void addToCart(int userId, int productId, int quantity) {
+        System.out.println("DEBUG: Service.addToCart - User: " + userId + ", Product: " + productId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
+        if (product == null) throw new RuntimeException("Product cannot be null");
+        
         if (product.getStockQuantity() < quantity) {
-            throw new RuntimeException("Not enough stock available");
+            throw new RuntimeException("Not enough stock available. Remaining: " + product.getStockQuantity());
         }
 
-        List<CartItem> existingItems = cartItemRepository.findByUser(user);
-        Optional<CartItem> matchingItem = existingItems.stream()
+        List<CartItem> cart = userCarts.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>(cartItemRepository.findByUser(user)));
+        Optional<CartItem> matchingItem = cart.stream()
                 .filter(item -> item.getProduct().getProductId() == productId)
                 .findFirst();
 
@@ -64,49 +72,79 @@ public class CartService {
             item.setQuantity(quantity);
             item.setUnitPrice(product.getPrice());
             cartItemRepository.save(item);
+            cart.add(item);
         }
-        DataEventBus.publish();
+
+        product.setStockQuantity(product.getStockQuantity() - quantity);
+        productRepository.save(product);
+        System.out.println("DEBUG: Service.addToCart - Success. New stock: " + product.getStockQuantity());
     }
 
+    @Transactional(readOnly = true)
     public List<CartItem> getCartItems(int userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return cartItemRepository.findByUser(user);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return new CopyOnWriteArrayList<>();
+        
+        List<CartItem> dbItems = cartItemRepository.findByUser(user);
+        userCarts.put(userId, new CopyOnWriteArrayList<>(dbItems));
+        return userCarts.get(userId);
     }
 
     @Transactional
     public void updateQuantity(int cartItemId, int quantity) {
         cartItemRepository.findById(cartItemId).ifPresent(item -> {
+            Product product = item.getProduct();
+            int diff = quantity - item.getQuantity();
+            
+            if (product.getStockQuantity() < diff) {
+                throw new RuntimeException("Not enough stock available");
+            }
+
             if (quantity <= 0) {
-                cartItemRepository.delete(item);
+                removeFromCart(cartItemId);
             } else {
+                product.setStockQuantity(product.getStockQuantity() - diff);
                 item.setQuantity(quantity);
                 cartItemRepository.save(item);
+                productRepository.save(product);
             }
-            DataEventBus.publish();
         });
     }
 
     @Transactional
     public void removeFromCart(int cartItemId) {
-        cartItemRepository.deleteById(cartItemId);
-        DataEventBus.publish();
+        cartItemRepository.findById(cartItemId).ifPresent(item -> {
+            Product product = item.getProduct();
+            product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
+            productRepository.save(product);
+            
+            int userId = item.getUser().getUserId();
+            List<CartItem> cart = userCarts.get(userId);
+            if (cart != null) {
+                cart.removeIf(i -> i.getCartItemId() == cartItemId);
+            }
+            
+            cartItemRepository.delete(item);
+        });
     }
 
     @Transactional
     @CacheEvict(value = {"products", "product"}, allEntries = true)
     public boolean checkout(int userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        List<CartItem> items = cartItemRepository.findByUser(user);
+        System.out.println("DEBUG: Service.checkout - User: " + userId);
+        List<CartItem> items = getCartItems(userId);
+        if (items.isEmpty()) {
+            System.out.println("DEBUG: Service.checkout - Failed (Cart empty)");
+            return false;
+        }
 
-        if (items.isEmpty()) return false;
-
+        User user = userRepository.findById(userId).orElseThrow();
         double totalAmount = items.stream().mapToDouble(CartItem::getSubtotal).sum();
         processCheckout(user, items, totalAmount);
         
         cartItemRepository.deleteByUser(user);
-        DataEventBus.publish();
+        userCarts.remove(userId);
+        System.out.println("DEBUG: Service.checkout - Success");
         return true;
     }
 
@@ -119,8 +157,11 @@ public class CartService {
         User user = cartItem.getUser();
         processCheckout(user, List.of(cartItem), cartItem.getSubtotal());
         
+        int userId = user.getUserId();
+        List<CartItem> cart = userCarts.get(userId);
+        if (cart != null) cart.removeIf(i -> i.getCartItemId() == cartItemId);
+        
         cartItemRepository.delete(cartItem);
-        DataEventBus.publish();
     }
 
     private void processCheckout(User user, List<CartItem> items, double totalAmount) {
@@ -132,12 +173,6 @@ public class CartService {
 
         for (CartItem cartItem : items) {
             Product product = cartItem.getProduct();
-            if (product.getStockQuantity() < cartItem.getQuantity()) {
-                throw new RuntimeException("Insufficient stock for product: " + product.getName());
-            }
-            product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
-            productRepository.save(product);
-
             OrderItem orderItem = new OrderItem();
             orderItem.setOrder(order);
             orderItem.setProduct(product);
@@ -145,5 +180,6 @@ public class CartService {
             orderItem.setUnitPrice(cartItem.getUnitPrice());
             order.getItems().add(orderItem);
         }
+        orderRepository.save(order);
     }
 }

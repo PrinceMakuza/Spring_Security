@@ -21,9 +21,17 @@
         <Button onAction="#loadCart" styleClass="button-primary" text="🔄 Refresh" />
     </HBox>
 
-    <ScrollPane fitToWidth="true" style="-fx-background: transparent; -fx-background-color: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
-        <VBox fx:id="itemsContainer" spacing="15.0" />
-    </ScrollPane>
+    <TableView fx:id="cartTable" VBox.vgrow="ALWAYS">
+        <placeholder>
+            <Label styleClass="label-muted" text="Your cart is empty." />
+        </placeholder>
+    </TableView>
+
+    <HBox alignment="CENTER" spacing="15.0" styleClass="pagination-bar">
+        <Button onAction="#handlePrevPage" text="◀ Previous" />
+        <Label fx:id="pageLabel" styleClass="page-label" text="Page 1 of 1" />
+        <Button onAction="#handleNextPage" text="Next ▶" />
+    </HBox>
 
     <HBox alignment="CENTER_RIGHT" spacing="20.0">
         <padding>

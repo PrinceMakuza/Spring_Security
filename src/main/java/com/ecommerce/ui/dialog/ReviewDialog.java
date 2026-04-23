@@ -86,6 +86,15 @@ public class ReviewDialog {
                 r.setComment(commentArea.getText().trim());
                 reviewRepository.save(r);
                 
+                // Evict cache to ensure average rating updates in UI
+                org.springframework.cache.CacheManager cacheManager = SpringContextBridge.getBean(org.springframework.cache.CacheManager.class);
+                if (cacheManager != null) {
+                    org.springframework.cache.Cache prodCache = cacheManager.getCache("products");
+                    if (prodCache != null) prodCache.clear();
+                    org.springframework.cache.Cache pCache = cacheManager.getCache("product");
+                    if (pCache != null) pCache.evict(productId);
+                }
+
                 commentArea.clear();
                 loadReviews(reviewsBox); // Refresh locally
                 com.ecommerce.util.DataEventBus.publish(); // Notify other views (admin reviews table, etc)
