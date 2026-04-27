@@ -12,7 +12,7 @@
             height: 100vh;
             width: 100vw;
             overflow: hidden;
-            background: #1a1a1a;
+            background: #0b0e14;
             color: #ffffff;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
@@ -24,6 +24,80 @@
             --color-primary: #38b86c;
             --color-info: #00bcd4;
             --font-family: 'Inter', sans-serif;
+            --color-neutral: #1a1a1a;
+        }
+
+        /* Query Explorer Styles */
+        .explorer-panel {
+            background: #14171c;
+            border-right: 1px solid #2d3139;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+            color: #d1d5db;
+            font-size: 13px;
+        }
+        .explorer-header {
+            padding: 16px;
+            border-bottom: 1px solid #2d3139;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .explorer-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid #24282e;
+        }
+        .explorer-section-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #38b86c;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .explorer-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            cursor: pointer;
+        }
+        .explorer-row:hover {
+            color: #ffffff;
+        }
+        .explorer-row input[type="checkbox"] {
+            accent-color: #38b86c;
+            cursor: pointer;
+        }
+        .explorer-input-group {
+            margin: 8px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .explorer-field-input {
+            background: #1f2329;
+            border: 1px solid #2d3139;
+            color: #ffffff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .explorer-field-input:focus {
+            border-color: #38b86c;
+            outline: none;
+        }
+        .sidebar-icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
         }
     </style>
 </head>
@@ -36,77 +110,198 @@
 <script crossorigin src="https://unpkg.com/graphiql@3.0.6/graphiql.min.js"></script>
 
 <script>
+    const { useState, useEffect, useMemo, createElement } = React;
+
     const graphQLFetcher = async (graphQLParams) => {
         const response = await fetch('/graphql', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Optional: Add session token if required
-                // 'Authorization': 'Bearer ' + localStorage.getItem('token')
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(graphQLParams),
         });
         return response.json().catch(() => response.text());
     };
 
-    const defaultQuery = `{
-  # 1. Product & Category Relationship
-  categories {
-    name
-    products {
-      name
-      price
-    }
-  }
+    const ENTITIES = {
+        Product: {
+            query: 'products',
+            single: 'product',
+            fields: ['productId', 'name', 'price', 'stockQuantity', 'description', 'createdAt']
+        },
+        Category: {
+            query: 'categories',
+            single: 'category',
+            fields: ['categoryId', 'name', 'description', 'createdAt']
+        },
+        User: {
+            query: 'users',
+            single: 'user',
+            fields: ['userId', 'name', 'email', 'role', 'location', 'createdAt']
+        },
+        Order: {
+            query: 'orders',
+            single: 'order',
+            fields: ['orderId', 'totalAmount', 'status', 'orderDate']
+        }
+    };
 
-  # 2. User, Orders & Cart Relationship
-  users {
-    name
-    email
-    orders {
-      orderId
-      totalAmount
-      status
-      items {
-        product { name }
-        quantity
-      }
-    }
-    cart {
-      product { name }
-      quantity
-    }
-  }
+    const ExplorerIcon = () => createElement('svg', {
+        viewBox: '0 0 24 24',
+        width: '24',
+        height: '24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: '2',
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+    }, 
+        createElement('circle', { cx: '11', cy: '11', r: '8' }),
+        createElement('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' }),
+        createElement('line', { x1: '11', y1: '8', x2: '11', y2: '14' }),
+        createElement('line', { x1: '8', y1: '11', x2: '14', y2: '11' })
+    );
 
-  # 3. Direct All Orders Query
-  orders {
-    orderId
-    user { name }
-    items {
-      product { name }
-      quantity
-    }
+    const QueryExplorerPanel = ({ onQueryChange }) => {
+        const [state, setState] = useState({
+            entity: 'Product',
+            isList: true,
+            id: '1',
+            page: 0,
+            size: 10,
+            selectedFields: { Product: ['productId', 'name', 'price'] }
+        });
+
+        const generateQuery = () => {
+            const { entity, isList, id, page, size, selectedFields } = state;
+            const config = ENTITIES[entity];
+            const fields = (selectedFields[entity] || []).join('\n    ');
+            
+            if (!isList) {
+                return `query Get${entity} {
+  ${config.single}(id: "${id || '1'}") {
+    ${fields}
   }
 }`;
+            }
 
-    const root = ReactDOM.createRoot(document.getElementById('graphiql'));
-    
-    // Clear previous cached query to ensure our default is visible
-    if (!localStorage.getItem('graphiql:query')) {
-        localStorage.setItem('graphiql:query', defaultQuery);
+            if (entity === 'Product') {
+                return `query ListProducts {
+  products(page: ${page}, size: ${size}) {
+    content {
+      ${fields}
     }
+    totalElements
+    totalPages
+  }
+}`;
+            }
 
-    root.render(
-        React.createElement(GraphiQL, { 
+            return `query List${entity}s {
+  ${config.query} {
+    ${fields}
+  }
+}`;
+        };
+
+        useEffect(() => {
+            onQueryChange(generateQuery());
+        }, [state]);
+
+        const toggleField = (entity, field) => {
+            const current = state.selectedFields[entity] || [];
+            const next = current.includes(field) 
+                ? current.filter(f => f !== field)
+                : [...current, field];
+            setState({ ...state, selectedFields: { ...state.selectedFields, [entity]: next } });
+        };
+
+        return createElement('div', { className: 'explorer-panel' },
+            createElement('div', { className: 'explorer-header' }, 'Entity Explorer'),
+            createElement('div', { className: 'explorer-section' },
+                createElement('div', { className: 'explorer-section-title' }, 'Select Entity'),
+                createElement('select', {
+                    className: 'explorer-field-input',
+                    value: state.entity,
+                    onChange: e => setState({ ...state, entity: e.target.value })
+                }, Object.keys(ENTITIES).map(e => createElement('option', { key: e, value: e }, e)))
+            ),
+            createElement('div', { className: 'explorer-section' },
+                createElement('div', { className: 'explorer-section-title' }, 'Query Mode'),
+                createElement('div', { className: 'explorer-row', onClick: () => setState({...state, isList: true}) },
+                    createElement('input', { type: 'radio', checked: state.isList, readOnly: true }), 'List Collection'
+                ),
+                createElement('div', { className: 'explorer-row', onClick: () => setState({...state, isList: false}) },
+                    createElement('input', { type: 'radio', checked: !state.isList, readOnly: true }), 'Single Record (ID)'
+                )
+            ),
+            createElement('div', { className: 'explorer-section' },
+                createElement('div', { className: 'explorer-section-title' }, 'Arguments'),
+                !state.isList ? 
+                    createElement('input', {
+                        className: 'explorer-field-input',
+                        placeholder: 'Enter ID...',
+                        value: state.id,
+                        onChange: e => setState({...state, id: e.target.value})
+                    }) :
+                    state.entity === 'Product' && createElement('div', { className: 'explorer-input-group' },
+                        createElement('input', {
+                            className: 'explorer-field-input',
+                            type: 'number',
+                            placeholder: 'Page',
+                            value: state.page,
+                            onChange: e => setState({...state, page: parseInt(e.target.value) || 0})
+                        }),
+                        createElement('input', {
+                            className: 'explorer-field-input',
+                            type: 'number',
+                            placeholder: 'Size',
+                            value: state.size,
+                            onChange: e => setState({...state, size: parseInt(e.target.value) || 10})
+                        })
+                    )
+            ),
+            createElement('div', { className: 'explorer-section', style: { borderBottom: 'none' } },
+                createElement('div', { className: 'explorer-section-title' }, 'Fields'),
+                ENTITIES[state.entity].fields.map(f => 
+                    createElement('div', { 
+                        key: f, 
+                        className: 'explorer-row',
+                        onClick: () => toggleField(state.entity, f)
+                    },
+                        createElement('input', { 
+                            type: 'checkbox', 
+                            checked: (state.selectedFields[state.entity] || []).includes(f),
+                            readOnly: true
+                        }), f
+                    )
+                )
+            )
+        );
+    };
+
+    const App = () => {
+        const [query, setQuery] = useState(localStorage.getItem('graphiql:query') || '');
+
+        const explorerPlugin = useMemo(() => ({
+            title: 'Query Explorer',
+            icon: ExplorerIcon,
+            content: () => createElement(QueryExplorerPanel, { onQueryChange: setQuery })
+        }), []);
+
+        return createElement(GraphiQL, {
             fetcher: graphQLFetcher,
-            defaultEditorToolsVisibility: true,
-            query: localStorage.getItem('graphiql:query') || defaultQuery,
+            query: query,
             onEditQuery: (newQuery) => {
+                setQuery(newQuery);
                 localStorage.setItem('graphiql:query', newQuery);
             },
-            header: React.createElement(GraphiQL.Header, null, "Smart E-Commerce API Explorer")
-        })
-    );
+            header: createElement(GraphiQL.Header, null, "Smart E-Commerce API Explorer"),
+            plugins: [explorerPlugin],
+            defaultVisiblePlugin: 'Query Explorer'
+        });
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('graphiql'));
+    root.render(createElement(App));
 </script>
 </body>
 </html>
