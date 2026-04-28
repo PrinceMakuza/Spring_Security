@@ -37,3 +37,11 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Spring Boot Config (Credentials) ###
+**/src/main/resources/application.properties
+**/src/main/resources/application-*.properties
+**/src/main/resources/application.yml
+**/src/main/resources/application-*.yml
+**/src/main/resources/yaml/application*.yml
+**/src/main/resources/yaml/application*.properties

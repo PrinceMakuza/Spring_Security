@@ -48,11 +48,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 # Test (H2 in-memory database)
 mvn spring-boot:run -Dspring-boot.run.profiles=test
 
-# Production (requires environment variables)
-export PROD_DB_URL=jdbc:postgresql://prod-host:5432/ecommerce_db
-export PROD_DB_USERNAME=prod_user
-export PROD_DB_PASSWORD=prod_pass
-
+# Set production environment variables (URL, USERNAME, PASSWORD) as per your environment
 mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 

@@ -1,7 +1,0 @@
-spring:
-  graphql:
-    schema:
-      printer:
-        enabled: true
-server:
-  port: 8080
