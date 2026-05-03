@@ -40,8 +40,13 @@ public interface ProductRepository extends JpaRepository<Product, Integer>, JpaS
     /**
      * Custom JPQL search with optional parameters.
      */
-    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p LEFT JOIN FETCH p.category WHERE " +
-            "(:name IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :name, '%'))) AND " +
+    @org.springframework.data.jpa.repository.Query(value = "SELECT p FROM Product p LEFT JOIN FETCH p.category WHERE " +
+            "(:name IS NULL OR LOWER(p.name) LIKE :name) AND " +
+            "(:categoryId IS NULL OR p.category.categoryId = :categoryId) AND " +
+            "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
+            "(:maxPrice IS NULL OR p.price <= :maxPrice)",
+            countQuery = "SELECT count(p) FROM Product p WHERE " +
+            "(:name IS NULL OR LOWER(p.name) LIKE :name) AND " +
             "(:categoryId IS NULL OR p.category.categoryId = :categoryId) AND " +
             "(:minPrice IS NULL OR p.price >= :minPrice) AND " +
             "(:maxPrice IS NULL OR p.price <= :maxPrice)")

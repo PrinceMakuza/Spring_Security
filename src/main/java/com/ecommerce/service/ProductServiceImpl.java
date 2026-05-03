@@ -46,7 +46,8 @@ public class ProductServiceImpl implements ProductService {
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortField).ascending() : Sort.by(sortField).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        return productRepository.searchProducts(name, categoryId, minPrice, maxPrice, pageable);
+        String nameFilter = (name != null && !name.trim().isEmpty()) ? "%" + name.trim().toLowerCase() + "%" : null;
+        return productRepository.searchProducts(nameFilter, categoryId, minPrice, maxPrice, pageable);
     }
 
     @Transactional(readOnly = true)
