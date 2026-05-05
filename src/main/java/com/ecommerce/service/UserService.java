@@ -15,9 +15,11 @@ import java.util.Optional;
 @Service
 public class UserService {
     private final UserRepository userRepository;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public Page<User> getAllUsers(int page, int size, String sortBy, String sortDir, String name) {
@@ -37,13 +39,20 @@ public class UserService {
         return userRepository.findById(id);
     }
 
+    public Optional<User> getUserByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
     @Transactional
     public User createUser(UserDTO userDTO) {
         User user = new User();
         user.setName(userDTO.name());
         user.setEmail(userDTO.email());
         user.setRole(userDTO.role());
-        user.setPassword(userDTO.password());
+        // Use provided password or default if empty
+        String plainPassword = (userDTO.password() != null && !userDTO.password().isEmpty()) 
+            ? userDTO.password() : (userDTO.name().split("\\s+")[0] + "@123");
+        user.setPassword(passwordEncoder.encode(plainPassword));
         user.setLocation(userDTO.location());
         return userRepository.save(user);
     }
@@ -54,7 +63,9 @@ public class UserService {
             user.setName(userDTO.name());
             user.setEmail(userDTO.email());
             user.setRole(userDTO.role());
-            if (userDTO.password() != null) user.setPassword(userDTO.password());
+            if (userDTO.password() != null && !userDTO.password().trim().isEmpty()) {
+                user.setPassword(passwordEncoder.encode(userDTO.password()));
+            }
             user.setLocation(userDTO.location());
             return userRepository.save(user);
         }).orElseThrow(() -> new RuntimeException("User not found"));

@@ -26,8 +26,6 @@ import javafx.scene.layout.*;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ObservableValue;
-import org.mindrot.jbcrypt.BCrypt;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -504,7 +502,6 @@ public class AdminController {
                 User u = existing != null ? existing : new User();
                 u.setName(name.getText().trim()); u.setEmail(email.getText().trim().toLowerCase());
                 u.setRole(role.getValue()); u.setLocation(location.getText().trim());
-                if (existing == null) { u.setPassword(BCrypt.hashpw(u.getName().split("\\s+")[0] + "@123", BCrypt.gensalt())); }
                 return u;
             }
             return null;

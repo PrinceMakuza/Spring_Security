@@ -54,6 +54,8 @@
                 
                 <Button fx:id="mainBtn" text="Sign In" maxWidth="Infinity" prefHeight="45.0" onAction="#handleAction" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-cursor: hand;" styleClass="button-primary" />
                 
+                <Button fx:id="googleBtn" text="Sign in with Google" maxWidth="Infinity" prefHeight="45.0" onAction="#handleGoogleLogin" style="-fx-font-size: 14px; -fx-cursor: hand; -fx-background-color: #ffffff; -fx-text-fill: #757575; -fx-border-color: #ddd; -fx-border-radius: 5; -fx-background-radius: 5;" />
+                
                 <Label fx:id="statusLabel" wrapText="true" textAlignment="CENTER" />
                 
                 <Hyperlink fx:id="toggleLink" text="Don't have an account? Create one" onAction="#toggleMode" style="-fx-text-fill: #3498db; -fx-underline: false;" />

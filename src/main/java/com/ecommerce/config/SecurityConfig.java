@@ -29,10 +29,14 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final OAuth2LoginSuccessHandler oAuth2SuccessHandler;
+    private final org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, OAuth2LoginSuccessHandler oAuth2SuccessHandler) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, 
+                          OAuth2LoginSuccessHandler oAuth2SuccessHandler,
+                          @org.springframework.beans.factory.annotation.Autowired(required = false) org.springframework.security.oauth2.client.registration.ClientRegistrationRepository clientRegistrationRepository) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.oAuth2SuccessHandler = oAuth2SuccessHandler;
+        this.clientRegistrationRepository = clientRegistrationRepository;
     }
 
     @Bean
@@ -40,7 +44,7 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**", "/graphql/**", "/graphiql/**")
+                .ignoringRequestMatchers("/api/**", "/graphql/**", "/graphql", "/graphiql/**", "/graphiql")
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
@@ -49,32 +53,43 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/graphiql/**",
+                    "/graphiql",
                     "/graphql/**",
+                    "/graphql",
                     "/h2-console/**",
-                    "/api/test/csrf-demo"
+                    "/api/test/csrf-demo",
+                    "/auth-success.html"
                 ).permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/products/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories/**").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint((request, response, authException) -> {
                     if (request.getRequestURI().startsWith("/api/")) {
                         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         response.setContentType("application/json");
                         response.getWriter().write("{\"status\":\"error\",\"message\":\"Unauthorized: Please provide a valid JWT token.\"}");
-                    } else {
+                    } else if (clientRegistrationRepository != null) {
                         response.sendRedirect("/oauth2/authorization/google");
+                    } else {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     }
                 })
-            )
-            .oauth2Login(oauth2 -> oauth2
+            );
+
+        if (clientRegistrationRepository != null) {
+            http.oauth2Login(oauth2 -> oauth2
                 .successHandler(oAuth2SuccessHandler)
-            )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            );
+        }
+
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         // Allow H2 console frames
         http.headers(headers -> headers.frameOptions(frame -> frame.disable()));

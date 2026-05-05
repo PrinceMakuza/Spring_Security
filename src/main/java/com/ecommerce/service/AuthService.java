@@ -33,8 +33,14 @@ public class AuthService {
             throw new IllegalArgumentException("Incorrect password.");
         }
         
-        // Context populating will be handled by JwtAuthenticationFilter for subsequent requests
-        return null; // Token generation will be handled in Controller or here
+        // Populate local context for JavaFX app
+        UserContext.setCurrentUserId(user.getUserId());
+        UserContext.setCurrentUserName(user.getName());
+        UserContext.setCurrentUserEmail(user.getEmail());
+        UserContext.setCurrentUserRole(user.getRole());
+        UserContext.setCurrentUserLocation(user.getLocation());
+        
+        return null; // JWT will be returned via Controller for REST clients
     }
 
     /**
@@ -48,7 +54,17 @@ public class AuthService {
         user.setRole(role != null ? role : "CUSTOMER");
         user.setPassword(passwordEncoder.encode(password));
         user.setLocation(location);
-        return userRepository.save(user);
+        
+        User savedUser = userRepository.save(user);
+
+        // Populate UserContext for JavaFX app (sharing JVM)
+        UserContext.setCurrentUserId(savedUser.getUserId());
+        UserContext.setCurrentUserName(savedUser.getName());
+        UserContext.setCurrentUserEmail(savedUser.getEmail());
+        UserContext.setCurrentUserRole(savedUser.getRole());
+        UserContext.setCurrentUserLocation(savedUser.getLocation());
+
+        return savedUser;
     }
 
     public void logout() {

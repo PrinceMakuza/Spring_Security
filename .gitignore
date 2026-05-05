@@ -45,3 +45,6 @@ build/
 **/src/main/resources/application-*.yml
 **/src/main/resources/yaml/application*.yml
 **/src/main/resources/yaml/application*.properties
+
+# Temporary signaling files
+shared-auth.tmp

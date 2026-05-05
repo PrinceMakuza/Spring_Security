@@ -7,7 +7,11 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import com.ecommerce.ui.FrontendApplication;
 import java.util.regex.Pattern;
+import javafx.application.Platform;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * LoginController manages authentications and handles UI interactions for the login screen.
@@ -36,6 +40,7 @@ public class LoginController {
     @FXML private TextField confirmPasswordVisible;
     @FXML private Button toggleConfirmBtn;
     @FXML private Button mainBtn;
+    @FXML private Button googleBtn;
     @FXML private Label statusLabel;
     @FXML private Hyperlink toggleLink;
     @FXML private HBox demoBox;
@@ -90,6 +95,66 @@ public class LoginController {
         locationField.setManaged(visible);
         demoBox.setVisible(!visible);
         demoBox.setManaged(!visible);
+    }
+
+    @FXML
+    private void handleGoogleLogin() {
+        try {
+            statusLabel.setText("Opening browser for Google Sign-In...");
+            statusLabel.setTextFill(Color.web("#3498db"));
+            
+            FrontendApplication.getInstance().getHostServices().showDocument("http://localhost:8080/oauth2/authorization/google");
+            
+            // Poll for login success (checks both local UserContext and shared file)
+            Timer timer = new Timer(true);
+            timer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    boolean success = false;
+                    
+                    // Case 1: Same process (UserContext populated directly)
+                    if (UserContext.isLoggedIn()) {
+                        success = true;
+                    } 
+                    // Case 2: Different process (External backend wrote to file)
+                    else {
+                        java.nio.file.Path sharedPath = java.nio.file.Path.of("shared-auth.tmp");
+                        if (java.nio.file.Files.exists(sharedPath)) {
+                            try {
+                                String email = java.nio.file.Files.readString(sharedPath).trim();
+                                java.nio.file.Files.deleteIfExists(sharedPath);
+                                
+                                com.ecommerce.service.UserService userService = SpringContextBridge.getBean(com.ecommerce.service.UserService.class);
+                                java.util.Optional<com.ecommerce.model.User> userOpt = userService.getUserByEmail(email);
+                                
+                                if (userOpt.isPresent()) {
+                                    com.ecommerce.model.User user = userOpt.get();
+                                    UserContext.setCurrentUserId(user.getUserId());
+                                    UserContext.setCurrentUserName(user.getName());
+                                    UserContext.setCurrentUserEmail(user.getEmail());
+                                    UserContext.setCurrentUserRole(user.getRole());
+                                    UserContext.setCurrentUserLocation(user.getLocation());
+                                    success = true;
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+
+                    if (success) {
+                        Platform.runLater(() -> {
+                            System.out.println("Google Login detected!");
+                            if (onLoginSuccess != null) onLoginSuccess.run();
+                        });
+                        timer.cancel();
+                    }
+                }
+            }, 2000, 1000);
+            
+        } catch (Exception e) {
+            showError("Could not open browser: " + e.getMessage());
+        }
     }
 
     @FXML

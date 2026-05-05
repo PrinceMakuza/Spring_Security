@@ -44,7 +44,22 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             userRepository.save(existingUser);
         }
 
-        // Redirect to a frontend success page or dashboard
-        getRedirectStrategy().sendRedirect(request, response, "http://localhost:8080/swagger-ui/index.html");
+        // Populate UserContext for JavaFX app (sharing JVM if running in same process)
+        User user = userRepository.findByEmail(email).orElseThrow();
+        com.ecommerce.util.UserContext.setCurrentUserId(user.getUserId());
+        com.ecommerce.util.UserContext.setCurrentUserName(user.getName());
+        com.ecommerce.util.UserContext.setCurrentUserEmail(user.getEmail());
+        com.ecommerce.util.UserContext.setCurrentUserRole(user.getRole());
+        com.ecommerce.util.UserContext.setCurrentUserLocation(user.getLocation());
+
+        // Signal to external JavaFX process via shared file
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of("shared-auth.tmp"), email);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Redirect to a frontend success page
+        getRedirectStrategy().sendRedirect(request, response, "/auth-success.html");
     }
 }
