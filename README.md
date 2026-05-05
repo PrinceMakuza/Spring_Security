@@ -66,6 +66,53 @@ mvn javafx:run
 
 ---
 
+## 🔒 Security Configuration
+
+The Smart E-Commerce System implements multi-layered security using Spring Security 6.x.
+
+### 🔑 Authentication Flow
+1. **JWT (Stateless)**:
+   - **Login**: POST to `/api/auth/login` with email and password. Returns a signed JWT.
+   - **Usage**: Include the token in the `Authorization` header as `Bearer <token>` for all protected REST/GraphQL requests.
+   - **Claims**: Includes `sub` (email) and `roles`.
+   - **Blacklisting**: Logged-out tokens are added to an in-memory blacklist using `ConcurrentHashMap` and checked by the `JwtAuthenticationFilter`.
+
+2. **OAuth2 (Google)**:
+   - **Provider**: Google OAuth2.
+   - **Flow**: Redirect to `/oauth2/authorization/google`. Upon success, `OAuth2LoginSuccessHandler` syncs user data with the database and assigns the `CUSTOMER` role.
+
+### 🛡️ Access Control (RBAC)
+Endpoints are secured using `@PreAuthorize` annotations based on user roles:
+- **ADMIN**: Product management (Create/Update/Delete), User management, Order management.
+- **STAFF**: Order management, Product viewing.
+- **CUSTOMER**: Profile viewing/updating, Order history, Cart management.
+
+| Endpoint | Role Required |
+|----------|---------------|
+| `/api/auth/**` | Public |
+| `/api/products` (GET) | Public |
+| `/api/products` (POST/PUT/DELETE) | `ADMIN` |
+| `/api/orders` | `ADMIN`, `STAFF` |
+| `/api/users/**` | `ADMIN` or Self |
+| `/graphql` | Public (Queries) / Secured (Mutations) |
+
+### 🌐 CORS & CSRF
+- **CORS**: Configured to allow `localhost:4200` (Angular) and `localhost:3000` (React).
+- **CSRF**: Disabled for `/api/**` and GraphQL as they use stateless JWT tokens which are not susceptible to traditional CSRF attacks.
+
+### 🛠️ Testing Instructions
+1. **Postman**:
+   - Import the provided Postman collection.
+   - Use the login request to obtain a token.
+   - Set the `token` environment variable for subsequent requests.
+2. **Swagger UI**:
+   - Access `/swagger-ui/index.html`.
+   - Use the "Authorize" button to enter your Bearer token (without the prefix).
+3. **Logs**:
+   - Check application logs for "SecurityLoggingAspect" entries to monitor auth events.
+
+---
+
 ## API Endpoints
 
 ### Base URL
