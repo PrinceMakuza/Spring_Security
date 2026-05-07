@@ -3,6 +3,9 @@ package com.ecommerce.service;
 import com.ecommerce.dto.UserDTO;
 import com.ecommerce.model.User;
 import com.ecommerce.repository.UserRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +25,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Cacheable(value = "users", key = "{#page, #size, #sortBy, #sortDir, #name}")
     public Page<User> getAllUsers(int page, int size, String sortBy, String sortDir, String name) {
         // Map 'date' to 'createdAt' for sorting
         String sortField = sortBy.equalsIgnoreCase("date") ? "createdAt" : sortBy;
@@ -35,6 +39,7 @@ public class UserService {
         return userRepository.findAll(pageable);
     }
 
+    @Cacheable(value = "users", key = "#id")
     public Optional<User> getUserById(int id) {
         return userRepository.findById(id);
     }
@@ -44,6 +49,7 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(value = "users", allEntries = true)
     public User createUser(UserDTO userDTO) {
         User user = new User();
         user.setName(userDTO.name());
@@ -58,6 +64,10 @@ public class UserService {
     }
 
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "users", key = "#id"),
+        @CacheEvict(value = "users", allEntries = true)
+    })
     public User updateUser(int id, UserDTO userDTO) {
         return userRepository.findById(id).map(user -> {
             user.setName(userDTO.name());
@@ -72,6 +82,10 @@ public class UserService {
     }
 
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "users", key = "#id"),
+        @CacheEvict(value = "users", allEntries = true)
+    })
     public void deleteUser(int id) {
         userRepository.deleteById(id);
     }
