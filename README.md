@@ -97,8 +97,14 @@ Endpoints are secured using `@PreAuthorize` annotations based on user roles:
 | `/graphql` | Public (Queries) / Secured (Mutations) |
 
 ### 🌐 CORS & CSRF
-- **CORS**: Configured to allow `localhost:4200` (Angular) and `localhost:3000` (React).
-- **CSRF**: Disabled for `/api/**` and GraphQL as they use stateless JWT tokens which are not susceptible to traditional CSRF attacks.
+- **CORS (Cross-Origin Resource Sharing)**:
+  - **Purpose**: Relaxes the Same-Origin Policy (SOP) to allow external web clients (like our React/Angular apps on `localhost:3000` or `4200`) to access API resources.
+  - **Implementation**: Configured in `SecurityConfig.corsConfigurationSource()` to allow specific origins, methods (`GET`, `POST`, etc.), and headers (`Authorization`, `Content-Type`).
+  - **Effect**: Browsers will perform a "preflight" OPTIONS request to check permissions before the actual request.
+- **CSRF (Cross-Site Request Forgery)**:
+  - **Purpose**: Prevents malicious sites from performing actions on behalf of an authenticated user using their session cookies.
+  - **Stateless APIs**: Disabled for `/api/**` (excluding test demo) and GraphQL because these use **stateless JWT tokens** passed in headers, not cookies. Since cookies are not automatically sent with these requests, they are inherently protected against CSRF.
+  - **Stateful Demo**: Enabled on `/api/test/csrf-demo` to illustrate that traditional session-based POST requests will fail without a valid CSRF token, demonstrating the importance of CSRF protection in stateful web applications.
 
 ### 🛠️ Testing Instructions
 1. **Postman**:
