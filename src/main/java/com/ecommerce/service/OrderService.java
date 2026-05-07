@@ -1,6 +1,8 @@
 package com.ecommerce.service;
 
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 
 import com.ecommerce.model.Order;
 import com.ecommerce.model.User;
@@ -30,11 +32,13 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "orders")
     public List<Order> getAllOrders() {
         return orderRepository.findAllWithUser();
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "orders", key = "{#page, #size, #sortBy, #direction}")
     public org.springframework.data.domain.Page<Order> getAllOrders(int page, int size, String sortBy, String direction) {
         org.springframework.data.domain.Sort sort = org.springframework.data.domain.Sort.by(
             "desc".equalsIgnoreCase(direction) ? org.springframework.data.domain.Sort.Direction.DESC : org.springframework.data.domain.Sort.Direction.ASC,
@@ -44,6 +48,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "orders", key = "'user_' + #userId")
     public List<Order> getUserOrders(int userId) {
         com.ecommerce.model.User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -51,6 +56,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "order", key = "#orderId")
     public Order getOrderDetails(int orderId) {
         return orderRepository.findOrderWithItems(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -63,7 +69,12 @@ public class OrderService {
     @Transactional(propagation = Propagation.REQUIRED,
                    isolation = Isolation.READ_COMMITTED,
                    rollbackFor = Exception.class)
-    @CacheEvict(value = "users", allEntries = true) // Simplification: evict users cache or targeted history if defined
+    @Caching(evict = {
+        @CacheEvict(value = "orders", allEntries = true),
+        @CacheEvict(value = "users", allEntries = true),
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "product", allEntries = true)
+    })
     public Order createOrder(int userId, List<Integer> productIds, List<Integer> quantities) {
         com.ecommerce.model.User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -115,6 +126,10 @@ public class OrderService {
      * Updates order status in a new transaction.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Caching(evict = {
+        @CacheEvict(value = "orders", allEntries = true),
+        @CacheEvict(value = "order", key = "#orderId")
+    })
     public Order updateOrderStatus(int orderId, String status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
