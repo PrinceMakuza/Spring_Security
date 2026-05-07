@@ -60,7 +60,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = "products", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "categories", allEntries = true)
+    })
     public Product createProduct(ProductDTO dto) {
         Category category = categoryRepository.findById(dto.categoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found with id: " + dto.categoryId()));
@@ -77,7 +80,8 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "product", key = "#id"),
-        @CacheEvict(value = "products", allEntries = true)
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "categories", allEntries = true)
     })
     public Product updateProduct(int id, ProductDTO dto) {
         return productRepository.findById(id).map(product -> {
@@ -99,7 +103,8 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     @Caching(evict = {
         @CacheEvict(value = "product", key = "#id"),
-        @CacheEvict(value = "products", allEntries = true)
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "categories", allEntries = true)
     })
     public void deleteProduct(int id) {
         productRepository.deleteById(id);
@@ -107,7 +112,11 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
-    @CacheEvict(value = "products", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "products", allEntries = true),
+        @CacheEvict(value = "product", allEntries = true),
+        @CacheEvict(value = "categories", allEntries = true)
+    })
     public void batchUpdatePrices(List<Integer> ids, double percentage) {
         for (Integer id : ids) {
             Product product = productRepository.findById(id)
