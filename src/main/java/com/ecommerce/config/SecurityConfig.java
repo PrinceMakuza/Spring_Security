@@ -44,7 +44,17 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**", "/graphql/**", "/graphql", "/graphiql/**", "/graphiql")
+                .ignoringRequestMatchers(
+                    "/api/auth/**", 
+                    "/api/products/**", 
+                    "/api/categories/**", 
+                    "/api/users/**",
+                    "/api/orders/**",
+                    "/graphql/**", 
+                    "/graphql", 
+                    "/graphiql/**", 
+                    "/graphiql"
+                )
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
