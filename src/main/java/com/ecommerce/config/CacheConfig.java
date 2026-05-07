@@ -19,7 +19,7 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager() {
         ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager();
-        cacheManager.setCacheNames(Arrays.asList("products", "product", "categories", "users"));
+        cacheManager.setCacheNames(Arrays.asList("products", "product", "categories", "users", "orders", "order"));
         return cacheManager;
     }
 }
