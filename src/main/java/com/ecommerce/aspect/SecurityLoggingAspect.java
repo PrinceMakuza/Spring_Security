@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.ecommerce.service.SecurityAuditService;
 import jakarta.servlet.http.HttpServletRequest;
 
 @Aspect
@@ -19,6 +20,11 @@ import jakarta.servlet.http.HttpServletRequest;
 public class SecurityLoggingAspect {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityLoggingAspect.class);
+    private final SecurityAuditService auditService;
+
+    public SecurityLoggingAspect(SecurityAuditService auditService) {
+        this.auditService = auditService;
+    }
 
     @Before("execution(* com.ecommerce.controller.AuthController.login(..))")
     public void logLoginAttempt(JoinPoint joinPoint) {
@@ -39,16 +45,20 @@ public class SecurityLoggingAspect {
         String ip = request.getRemoteAddr();
         
         logger.info("Login attempt for user: {} from IP: {}", username, ip);
+        auditService.recordEndpointHit("/api/auth/login");
     }
 
     @AfterReturning("execution(* com.ecommerce.controller.AuthController.login(..))")
     public void logLoginSuccess(JoinPoint joinPoint) {
-        logger.info("Login successful for user: {}", SecurityContextHolder.getContext().getAuthentication().getName());
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        logger.info("Login successful for user: {}", username);
+        auditService.recordLoginSuccess(username);
     }
 
     @AfterThrowing(pointcut = "execution(* com.ecommerce.controller.AuthController.login(..))", throwing = "ex")
     public void logLoginFailure(JoinPoint joinPoint, Exception ex) {
         logger.warn("Login failed: {}", ex.getMessage());
+        auditService.recordLoginFailure("system-wide"); // Simplification
     }
 
     @Before("execution(* com.ecommerce.controller.*.*(..)) && @annotation(org.springframework.security.access.prepost.PreAuthorize)")
@@ -57,5 +67,6 @@ public class SecurityLoggingAspect {
         String user = SecurityContextHolder.getContext().getAuthentication() != null ? 
                        SecurityContextHolder.getContext().getAuthentication().getName() : "anonymous";
         logger.debug("Access attempt by user: {} to method: {}", user, method);
+        auditService.recordEndpointHit(method);
     }
 }
