@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 
 /**
  * ReportService handles the orchestration of system reports and documentation.
@@ -19,6 +20,11 @@ import java.nio.file.Paths;
 public class ReportService {
 
     private static final String REPORT_DIR = "Documentation/Reports";
+    private final SecurityAuditService auditService;
+
+    public ReportService(SecurityAuditService auditService) {
+        this.auditService = auditService;
+    }
 
     public String generatePerformanceReport() throws Exception {
         ensureDirectoryExists();
@@ -76,6 +82,54 @@ public class ReportService {
         String filePath = Paths.get(REPORT_DIR, "system_documentation.md").toAbsolutePath().toString();
         try (FileWriter writer = new FileWriter(filePath)) {
             writer.write(doc.toString());
+        }
+        return filePath;
+    }
+
+    public String generateSecurityReport() throws Exception {
+        ensureDirectoryExists();
+        StringBuilder report = new StringBuilder();
+        report.append("# Smart E-Commerce Security Audit Report\n\n");
+        report.append("Generated: ").append(new java.util.Date()).append("\n\n");
+
+        report.append("## 1. Authentication Success Stats\n");
+        Map<String, Integer> successStats = auditService.getLoginSuccessStats();
+        if (successStats.isEmpty()) {
+            report.append("*No data recorded yet.*\n\n");
+        } else {
+            successStats.forEach((user, count) -> report.append("- **").append(user).append("**: ").append(count).append(" successful logins\n"));
+            report.append("\n");
+        }
+
+        report.append("## 2. Authentication Failure Stats\n");
+        Map<String, Integer> failureStats = auditService.getLoginFailureStats();
+        if (failureStats.isEmpty()) {
+            report.append("*No failures recorded (Great!).*\n\n");
+        } else {
+            failureStats.forEach((key, count) -> report.append("- **").append(key).append("**: ").append(count).append(" failed attempts\n"));
+            report.append("\n");
+        }
+
+        report.append("## 3. Endpoint Access Frequency\n");
+        Map<String, Integer> hitStats = auditService.getEndpointHitStats();
+        if (hitStats.isEmpty()) {
+            report.append("*No access data recorded yet.*\n\n");
+        } else {
+            hitStats.forEach((endpoint, count) -> report.append("- **").append(endpoint).append("**: ").append(count).append(" hits\n"));
+            report.append("\n");
+        }
+
+        report.append("## 4. DSA and Security Optimization (Requirement 5.1)\n");
+        report.append("- **Hashing**: Secure password storage using `BCrypt` (Work Factor 10).\n");
+        report.append("- **Lookup Optimization**: Token blacklisting and security audit tracking implement `ConcurrentHashMap` for O(1) time complexity on lookups and updates.\n");
+        report.append("- **Atomicity**: Endpoint hits are tracked using `AtomicInteger` to ensure thread-safety without heavy locking.\n");
+
+        String content = report.toString();
+        System.out.println("\n=== SECURITY AUDIT REPORT OUTPUT ===\n" + content + "\n================================");
+        String filePath = Paths.get(REPORT_DIR, "security_report.md").toAbsolutePath().toString();
+        
+        try (FileWriter writer = new FileWriter(filePath)) {
+            writer.write(content);
         }
         return filePath;
     }
