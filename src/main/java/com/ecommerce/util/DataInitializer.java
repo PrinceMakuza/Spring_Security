@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.springframework.core.env.Environment;
+import java.util.Arrays;
 
 import java.util.List;
 
@@ -26,6 +28,7 @@ public class DataInitializer implements CommandLineRunner {
     private final OrderRepository orderRepository;
     private final ReviewRepository reviewRepository;
     private final CartItemRepository cartItemRepository;
+    private final Environment environment;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -35,13 +38,15 @@ public class DataInitializer implements CommandLineRunner {
                            ProductRepository productRepository,
                            OrderRepository orderRepository,
                            ReviewRepository reviewRepository,
-                           CartItemRepository cartItemRepository) {
+                           CartItemRepository cartItemRepository,
+                           Environment environment) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.reviewRepository = reviewRepository;
         this.cartItemRepository = cartItemRepository;
+        this.environment = environment;
     }
 
     @Override
@@ -73,6 +78,12 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void cleanDatabase() {
+        boolean isTest = Arrays.asList(environment.getActiveProfiles()).contains("test");
+        if (isTest) {
+            System.out.println("[DataInitializer] Skipping truncation for H2 test profile (tables are already fresh).");
+            return;
+        }
+        
         System.out.println("[DataInitializer] Truncating tables and resetting identities...");
         // Use TRUNCATE with RESTART IDENTITY CASCADE to clear all data and reset sequences to 1
         entityManager.createNativeQuery("TRUNCATE TABLE cartitems, reviews, orderitems, orders, products, categories, users RESTART IDENTITY CASCADE").executeUpdate();
