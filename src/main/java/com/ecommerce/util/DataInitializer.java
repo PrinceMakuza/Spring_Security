@@ -6,6 +6,7 @@ import com.ecommerce.model.User;
 import com.ecommerce.repository.*;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
@@ -17,9 +18,11 @@ import java.util.List;
 
 /**
  * Seeds the database with default credentials and robust sample data.
- * Implements a "Clean Start" by clearing tables before seeding.
+ * Only runs when explicitly triggered via: --app.db.seed=true
+ * By default, this does NOT run on application startup.
  */
 @Component
+@ConditionalOnProperty(name = "app.db.seed", havingValue = "true", matchIfMissing = false)
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;

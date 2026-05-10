@@ -35,10 +35,22 @@ A Spring Boot 3.x e-commerce application with RESTful APIs, GraphQL integration,
    ```bash
    psql -U postgres -d ecommerce_db -f sql/schema.sql
    ```
-3. (Optional) Seed data:
+3. **Seed sample data** (manual trigger — does NOT run automatically):
    ```bash
-   psql -U postgres -d ecommerce_db -f sql/seed.sql
+   # Via Maven
+   mvn spring-boot:run -Dspring-boot.run.arguments="--app.db.seed=true"
+
+   # Via JAR
+   java -jar target/smart-ecommerce.jar --app.db.seed=true
    ```
+   This truncates all tables and seeds: 4 categories, an admin user, a sample customer, and 5 products.
+
+   | Seeded User | Email | Password | Role |
+   |---|---|---|---|
+   | System Admin | `admin@ecommerce.com` | `admin123` | ADMIN |
+   | John Doe | `john@example.com` | `password123` | CUSTOMER |
+
+   > **Note:** Normal `mvn spring-boot:run` will NOT seed data. You must pass `--app.db.seed=true` explicitly.
 ### Running with Profiles
 
 ```bash
@@ -135,7 +147,7 @@ http://localhost:8080/graphql
 ```
 ### GraphiQL Interactive Explorer
 ```
-http://localhost:8080/graphiql
+http://localhost:8080/graphiql.html
 ```
 ### h2 on test profile
 http://localhost:8081/h2-console
